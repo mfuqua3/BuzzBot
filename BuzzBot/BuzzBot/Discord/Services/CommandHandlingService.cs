@@ -11,12 +11,14 @@ namespace BuzzBot.Discord.Services
     {
         private readonly DiscordSocketClient _discord;
         private readonly CommandService _commands;
+        private readonly ItemRequestService _itemRequestService;
         private IServiceProvider _provider;
 
-        public CommandHandlingService(IServiceProvider provider, DiscordSocketClient discord, CommandService commands)
+        public CommandHandlingService(IServiceProvider provider, DiscordSocketClient discord, CommandService commands, ItemRequestService itemRequestService)
         {
             _discord = discord;
             _commands = commands;
+            _itemRequestService = itemRequestService;
             _provider = provider;
 
             _discord.MessageReceived += MessageReceived;
@@ -34,7 +36,10 @@ namespace BuzzBot.Discord.Services
             // Ignore system messages and messages from bots
             if (!(rawMessage is SocketUserMessage message)) return;
             if (message.Source != MessageSource.User) return;
-
+            var isDm = rawMessage.Channel is IDMChannel;
+            if (message.Channel.Id != 727626202977927188 && !isDm) return;//DevSandbox
+            if (isDm)
+                _itemRequestService.TryResolveResponse(rawMessage);
             int argPos = 0;
             //if (!message.HasMentionPrefix(_discord.CurrentUser, ref argPos)) return;
             if (!message.HasStringPrefix("buzz.", ref argPos, StringComparison.CurrentCultureIgnoreCase) ||
