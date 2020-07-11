@@ -1,5 +1,3 @@
-using System;
-
 namespace BuzzBot.Models
 {
     public class ErrorViewModel
