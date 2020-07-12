@@ -2,7 +2,7 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using Newtonsoft.Json;
 
-namespace BuzzBot.ClassicGuildBank.Domain
+namespace BuzzBotData.Data
 {
     public class BagSlot
     {

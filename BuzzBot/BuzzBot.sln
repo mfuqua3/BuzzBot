@@ -5,6 +5,10 @@ VisualStudioVersion = 16.0.30204.135
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuzzBot", "BuzzBot\BuzzBot.csproj", "{1EFEFEAF-02ED-4FAC-9887-81C751F9E057}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuzzBotData", "BuzzBotData\BuzzBotData.csproj", "{E1FFB951-BBBD-4BF7-9809-FE89D4812333}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WowheadDataSeeder", "WowheadDataSeeder\WowheadDataSeeder.csproj", "{37924992-A779-4003-9AD4-166D8A0FD85C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +19,14 @@ Global
 		{1EFEFEAF-02ED-4FAC-9887-81C751F9E057}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1EFEFEAF-02ED-4FAC-9887-81C751F9E057}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1EFEFEAF-02ED-4FAC-9887-81C751F9E057}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E1FFB951-BBBD-4BF7-9809-FE89D4812333}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E1FFB951-BBBD-4BF7-9809-FE89D4812333}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E1FFB951-BBBD-4BF7-9809-FE89D4812333}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E1FFB951-BBBD-4BF7-9809-FE89D4812333}.Release|Any CPU.Build.0 = Release|Any CPU
+		{37924992-A779-4003-9AD4-166D8A0FD85C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{37924992-A779-4003-9AD4-166D8A0FD85C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{37924992-A779-4003-9AD4-166D8A0FD85C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{37924992-A779-4003-9AD4-166D8A0FD85C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

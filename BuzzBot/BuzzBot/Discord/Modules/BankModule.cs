@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using BuzzBot.ClassicGuildBank.Buzz;
 using BuzzBot.Discord.Services;
+using BuzzBotData.Repositories;
 using Discord;
 using Discord.Commands;
 
@@ -16,13 +17,15 @@ namespace BuzzBot.Discord.Modules
         private readonly CommandService _commandService;
         private readonly ItemRequestService _itemRequestService;
         private readonly AdministrationService _administrationService;
+        private readonly GuildBankRepository _bankRepository;
         public const string GroupName = "bank";
-        public BankModule(ClassicGuildBankClient client, CommandService commandService, ItemRequestService itemRequestService, AdministrationService administrationService)
+        public BankModule(ClassicGuildBankClient client, CommandService commandService, ItemRequestService itemRequestService, AdministrationService administrationService, GuildBankRepository bankRepository)
         {
             _client = client;
             _commandService = commandService;
             _itemRequestService = itemRequestService;
             _administrationService = administrationService;
+            _bankRepository = bankRepository;
         }
 
         [Command("help")]
@@ -80,11 +83,51 @@ namespace BuzzBot.Discord.Modules
         }
 
         [RequiresBotAdmin]
-        [Command("adminTest")]
-        [Summary("This is a test for admin only commands.")]
-        public async Task AdminTest()
+        [Command("sync")]
+        [Summary("Syncs the bot's guild bank database to the ClassicGuildBank server.")]
+        public async Task Sync()
         {
+            await ReplyAsync("Querying server for guilds registered to bot owner");
+            var guilds = await _client.GetGuilds();
+            var replySb = new StringBuilder();
+            if (guilds.Count == 0)
+            {
+                await ReplyAsync("No guilds could be found");
+            }
 
+            for (var i = 0; i < guilds.Count; i++)
+            {
+                var guild = guilds[i];
+                replySb.Append(guild.Name);
+                if (i == guilds.Count - 1)
+                {
+                    replySb.Append(".");
+                    break;
+                }
+
+                replySb.Append(", ");
+            }
+
+            await ReplyAsync($"{guilds.Count} guild(s) successfully pulled from server: {replySb.ToString()}");
+            foreach (var guild in guilds)
+            {
+                _bankRepository.AddOrUpdateGuild(guild);
+                var characters = await _client.GetCharacters(guild._Id);
+                foreach (var character in characters)
+                {
+                    foreach (var bag in character.Bags)
+                    {
+                        bag.BagItem = null;
+                        foreach (var slot in bag.BagSlots)
+                        {
+                            slot.Item = null;
+                        }
+                    }
+                    _bankRepository.UpdateGuildCharacter(character, guild.Id);
+                }
+            }
+
+            await ReplyAsync("Database successfully synced with ClassicGuildBank server");
         }
     }
 }

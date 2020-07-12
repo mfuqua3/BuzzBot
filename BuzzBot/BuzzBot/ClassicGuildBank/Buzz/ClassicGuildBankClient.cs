@@ -6,6 +6,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 using BuzzBot.ClassicGuildBank.Domain;
+using BuzzBotData.Data;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 
@@ -52,9 +53,17 @@ namespace BuzzBot.ClassicGuildBank.Buzz
             return returnSb.ToString();
         }
 
-        private async Task<List<Character>> GetCharacters()
+        public async Task<List<Guild>> GetGuilds()
         {
-            var httpResult = await _client.GetAsync($"getcharacters/{_configuration["buzzBankId"]}");
+            var httpResult = await _client.GetAsync("guild/getguilds");
+            var guilds = JsonConvert.DeserializeObject<List<Guild>>(await httpResult.Content.ReadAsStringAsync());
+            return guilds;
+        }
+
+        public async Task<List<Character>> GetCharacters(string guildId = null)
+        {
+            var guildToQuery = guildId ?? _configuration["buzzBankId"];
+            var httpResult = await _client.GetAsync($"getcharacters/{guildToQuery}");
             var jsonResult = await httpResult.Content.ReadAsStringAsync();
             return JsonConvert.DeserializeObject<List<Character>>(jsonResult);
         }

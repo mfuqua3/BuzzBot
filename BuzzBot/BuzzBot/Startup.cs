@@ -5,6 +5,7 @@ using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Services;
 using BuzzBot.Epgp.Extensions;
 using BuzzBot.Wowhead.Extensions;
+using BuzzBotData.Extensions;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.AspNetCore.Builder;
@@ -28,6 +29,7 @@ namespace BuzzBot
         public void ConfigureServices(IServiceCollection services)
         {
             services
+                .AddData()
                 .AddClassicGuildBankComponents()
                 .AddEpgpComponents()
                 .AddWowheadComponents()

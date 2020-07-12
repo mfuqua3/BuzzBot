@@ -1,4 +1,6 @@
-﻿namespace BuzzBot.ClassicGuildBank.Domain
+﻿using BuzzBotData.Data;
+
+namespace BuzzBot.ClassicGuildBank.Domain
 {
     public class ItemListViewModel
     {

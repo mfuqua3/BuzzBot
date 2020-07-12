@@ -1,4 +1,4 @@
-﻿namespace BuzzBot.ClassicGuildBank.Domain
+﻿namespace BuzzBotData.Data
 {
     public class GuildRoles
     {

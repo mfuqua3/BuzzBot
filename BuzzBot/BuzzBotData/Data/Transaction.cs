@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace BuzzBot.ClassicGuildBank.Domain
+namespace BuzzBotData.Data
 {
     public class Transaction
     {

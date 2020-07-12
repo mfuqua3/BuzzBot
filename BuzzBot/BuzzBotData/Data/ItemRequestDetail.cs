@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace BuzzBot.ClassicGuildBank.Domain
+namespace BuzzBotData.Data
 {
     public class ItemRequestDetail
     {
