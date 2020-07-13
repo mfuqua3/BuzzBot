@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -11,14 +13,40 @@ namespace WowheadDataSeeder
 {
     class Program
     {
+        const String itemsFileLocation = "items.csv";
+
         static async Task Main(string[] args)
         {
-            var engine = new FileHelperEngine<Item>();
-            var items = engine.ReadFile("items.csv").GroupBy(itm=>itm.Entry).Select(itm=>itm.First());
+            //Get the file as a long string.
+            string itemsString = File.ReadAllText(itemsFileLocation);
+
+            //Handle any manual corrections we may need to do.
+            itemsString = itemsString.Replace("entry,name\r\n", "");
+            itemsString = itemsString.Replace("Monster - Item, Lantern - Round", "Monster - Item Lantern - Round");
+            itemsString = itemsString.Replace("Thunderfury, Blessed Blade of the Windseeker", "Thunderfury Blessed Blade of the Windseeker");
+            itemsString = itemsString.Replace("Zin'rokh, Destroyer of Worlds", "Zin'rokh Destroyer of Worlds");
+            itemsString = itemsString.Replace("\r\n", ",");
+
+            //Split the string on the ','
+            string[] itemsArray = itemsString.Split(',');
+
+            //Create a dictionary to store all of the determined values.
+            List<Item> itemsList = new List<Item>();
+            for (int i = 0; i < itemsArray.Length; i = i + 2)
+            {
+                //Add to the convertedItemsArray the list of 
+                itemsList.Add(new Item() {
+                    Entry = int.TryParse(itemsArray[i], out int iEntry) ? iEntry : 0,
+                    Name = (itemsArray.Length < i + 1) ? "N/a" : itemsArray[i + 1],
+                });
+            }
+
+            //instantiate the WowheadClient
             var wowheadClient = new WowheadClient();
             var db = new GuildBankDbContext();
+
             db.Database.EnsureCreated();
-            foreach (var item in items)
+            foreach (var item in itemsList)
             {
                 var wowheadItem = await wowheadClient.Get(item.Entry.ToString());
                 if (wowheadItem.Item == null) continue;
@@ -35,7 +63,7 @@ namespace WowheadDataSeeder
                 db.Items.Add(dbItem);
             }
 
-            ;
+            //Save the database.
             db.SaveChanges();
         }
     }
