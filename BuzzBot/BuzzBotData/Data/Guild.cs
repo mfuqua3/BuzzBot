@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 using Newtonsoft.Json;
 
-namespace BuzzBot.ClassicGuildBank.Domain
+namespace BuzzBotData.Data
 {
     public class Guild
     {
@@ -25,10 +25,13 @@ namespace BuzzBot.ClassicGuildBank.Domain
         public string PublicUrl { get; set; }
 
         public List<Character> Characters { get; set; }
+        [NotMapped]
 
         public List<GuildMember> GuildMembers { get; set; }
+        [NotMapped]
 
         public List<Transaction> Transactions { get; set; }
+        [NotMapped]
 
         public List<ItemRequest> ItemRequests { get; set; }
 

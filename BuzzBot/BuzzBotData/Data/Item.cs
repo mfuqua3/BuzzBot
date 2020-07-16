@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace BuzzBot.ClassicGuildBank.Domain
+namespace BuzzBotData.Data
 {
     public class Item
     {

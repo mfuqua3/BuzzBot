@@ -20,6 +20,9 @@ namespace BuzzBot.Discord.Modules
         [Command("query")]
         public async Task Query([Remainder] string query)
         {
+            var isHunter = query.EndsWith("-h");
+            if (isHunter)
+                query = query.Substring(0, query.Length - 2).TrimEnd();
             var wowheadObj = await _wowheadClient.Get(query);
             if (wowheadObj.Item == null)
             {
@@ -27,7 +30,7 @@ namespace BuzzBot.Discord.Modules
                 return;
             }
 
-            var value = _epgpCalculator.Calculate(wowheadObj.Item);
+            var value = _epgpCalculator.Calculate(wowheadObj.Item, isHunter);
             //var test = JsonConvert.DeserializeObject<WowheadJson>(wowheadObj.Item.Json);
             var embed = new EmbedBuilder();
             embed.WithTitle($"{wowheadObj.Item.Name} : {value:F0} GP");

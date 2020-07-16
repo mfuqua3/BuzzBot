@@ -5,12 +5,12 @@ namespace BuzzBot.Epgp
 {
     public class EpgpCalculator
     {
-        public double Calculate(XmlWarcraftItem xmlWarcraftItem)
+        public double Calculate(XmlWarcraftItem xmlWarcraftItem, bool isHunter)
         {
             var iLevel = int.Parse(xmlWarcraftItem.Level);
             var quality = int.Parse(xmlWarcraftItem.Quality.Id);
             var slot = int.Parse(xmlWarcraftItem.InventorySlot.Id);
-            return Math.Pow(GetItemValue(iLevel, quality), 2) * 0.04 * GetSlotValue(slot);
+            return Math.Pow(GetItemValue(iLevel, quality), 2) * 0.04 * GetSlotValue(slot, isHunter);
         }
 
         private double GetItemValue(int iLevel, int quality)
