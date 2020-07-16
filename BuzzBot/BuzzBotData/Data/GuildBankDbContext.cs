@@ -21,17 +21,6 @@ namespace BuzzBotData.Data
         {
             base.OnModelCreating(modelBuilder);
 
-            modelBuilder.Entity<GuildMember>(entity =>
-            {
-                entity.ToTable("GuildRole");
-                entity.HasKey(g => new { g.GuildId, g.UserId });
-
-                entity.HasOne(c => c.Guild)
-                    .WithMany(g => g.GuildMembers)
-                    .HasForeignKey(c => c.GuildId)
-                    .OnDelete(DeleteBehavior.Cascade);
-            });
-
             modelBuilder.Entity<Item>(entity =>
             {
                 entity.ToTable("Item");

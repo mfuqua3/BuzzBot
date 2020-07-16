@@ -25,10 +25,13 @@ namespace BuzzBotData.Data
         public string PublicUrl { get; set; }
 
         public List<Character> Characters { get; set; }
+        [NotMapped]
 
         public List<GuildMember> GuildMembers { get; set; }
+        [NotMapped]
 
         public List<Transaction> Transactions { get; set; }
+        [NotMapped]
 
         public List<ItemRequest> ItemRequests { get; set; }
 

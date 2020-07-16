@@ -52,6 +52,11 @@ namespace BuzzBot.Discord.Modules
         public async Task Search([Remainder] [Summary("Item to search")]
             string item)
         {
+            if (item.Length < 3)
+            {
+                await ReplyAsync("Query string must be at least three characters");
+                return;
+            }
             var result = await _client.QueryItem(item);
             if (!result.Any())
             {
@@ -62,7 +67,7 @@ namespace BuzzBot.Discord.Modules
             resultSb.AppendLine($"{total} item(s) found across {result.Count} character(s)");
             foreach (var queryResult in result)
             {
-                resultSb.AppendLine($"{queryResult.CharacterName} : {queryResult.Quantity} total stored");
+                resultSb.AppendLine($"{queryResult.CharacterName} : {queryResult.Quantity} {queryResult.ItemName} total stored");
             }
 
             await ReplyAsync(resultSb.ToString());
@@ -80,6 +85,18 @@ namespace BuzzBot.Discord.Modules
             var total = result.Select(r => r.Quantity).Sum();
             Task.Run(() => _itemRequestService.ProcessRequest(Context, item, total));
 
+        }
+
+        [Command("gold")]
+        [Summary("Returns the total gold value available in the guild bank.")]
+        public async Task Gold()
+        {
+            var totalCopper = _bankRepository.GetTotalGold();
+            var gold = (int)Math.Floor((double) totalCopper / 10000);
+            totalCopper -= gold*10000;
+            var silver = (int)Math.Floor((double) totalCopper / 100);
+            totalCopper -= silver * 100;
+            await ReplyAsync($"Total gold across all characters: {gold}g{silver}s{totalCopper}c");
         }
 
         [RequiresBotAdmin]
@@ -111,20 +128,9 @@ namespace BuzzBot.Discord.Modules
             await ReplyAsync($"{guilds.Count} guild(s) successfully pulled from server: {replySb.ToString()}");
             foreach (var guild in guilds)
             {
-                _bankRepository.AddOrUpdateGuild(guild);
                 var characters = await _client.GetCharacters(guild._Id);
-                foreach (var character in characters)
-                {
-                    foreach (var bag in character.Bags)
-                    {
-                        bag.BagItem = null;
-                        foreach (var slot in bag.BagSlots)
-                        {
-                            slot.Item = null;
-                        }
-                    }
-                    _bankRepository.UpdateGuildCharacter(character, guild.Id);
-                }
+                guild.Characters = characters;
+                _bankRepository.AddOrUpdateGuild(guild);
             }
 
             await ReplyAsync("Database successfully synced with ClassicGuildBank server");

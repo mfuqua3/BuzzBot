@@ -33,8 +33,8 @@ namespace BuzzBot.ClassicGuildBank.Buzz
                 if (!characters.Any(s => character.Name.Equals(s, StringComparison.InvariantCultureIgnoreCase))) continue;
                 var countDictionary = new Dictionary<string, int>();
                 returnSb.AppendLine($"Printing contents for {character.Name}:");
-                returnSb.AppendLine($"{character.Gold/10000:F0}G");
-                foreach (var bagSlot in character.Bags.SelectMany(b=>b.BagSlots))
+                returnSb.AppendLine($"{character.Gold / 10000:F0}G");
+                foreach (var bagSlot in character.Bags.SelectMany(b => b.BagSlots))
                 {
                     if (!countDictionary.ContainsKey(bagSlot.Item.Name))
                     {
@@ -73,24 +73,24 @@ namespace BuzzBot.ClassicGuildBank.Buzz
             var characters = await GetCharacters();
             foreach (var character in characters)
             {
-                var count = 0;
                 foreach (var bag in character.Bags)
                 {
                     foreach (var bagSlot in bag.BagSlots)
                     {
-                        if (!bagSlot.Item.Name.Equals(itemName, StringComparison.InvariantCultureIgnoreCase)) continue;
-                        count += bagSlot.Quantity;
-                    }
-                }
+                        if (!bagSlot.Item.Name.Contains(itemName, StringComparison.InvariantCultureIgnoreCase)) continue;
+                        if (!result.Any(r => r.CharacterName == character.Name && r.ItemName == bagSlot.Item.Name))
+                        {
+                            result.Add(new ItemQueryResult
+                            {
+                                ItemName = bagSlot.Item.Name,
+                                CharacterName = character.Name
+                            });
+                        }
 
-                if (count > 0)
-                {
-                    result.Add(new ItemQueryResult
-                    {
-                        ItemName = itemName,
-                        CharacterName = character.Name,
-                        Quantity = count
-                    });
+                        var thisResult = result.First((r =>
+                            r.CharacterName == character.Name && r.ItemName == bagSlot.Item.Name));
+                        thisResult.Quantity += bagSlot.Quantity;
+                    }
                 }
             }
 

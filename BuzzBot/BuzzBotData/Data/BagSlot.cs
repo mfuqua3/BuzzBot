@@ -23,4 +23,20 @@ namespace BuzzBotData.Data
 
         public Item Item { get; set; }
     };
+
+    public class Money
+    {
+        public Money(int totalCopper)
+        {
+            var remaining = totalCopper;
+            Gold = (int)Math.Floor((double) totalCopper / 10000);
+            remaining -= Gold * 10000;
+            Silver = (int)Math.Floor((double)remaining / 100);
+            remaining -= Silver * 100;
+            Copper = remaining;
+        }
+        public int Gold { get; set; }
+        public int Silver { get; set; }
+        public int Copper { get; set; }
+    }
 }
