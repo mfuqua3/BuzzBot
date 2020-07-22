@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using BuzzBot.Discord.Utility;
 using Discord;
 using Discord.WebSocket;
 
@@ -32,6 +33,9 @@ namespace BuzzBot.Discord.Services
             await  message.ModifyAsync(opt => opt.Content = pageToSend.Content);
         }
 
+        public async Task SendPages(IMessageChannel channel, PageFormat pageFormat)
+            => await SendPages(channel, $"{pageFormat.HeaderLine}\n{pageFormat.HorizontalRule}",
+                pageFormat.ContentLines.ToArray());
         public async Task SendPages(IMessageChannel channel, string header, params string[] contentLines)
         {
             var numberOfPages = (int)Math.Ceiling((double)contentLines.Length / 15);
