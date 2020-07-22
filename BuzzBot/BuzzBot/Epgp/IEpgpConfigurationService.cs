@@ -1,4 +1,6 @@
-﻿namespace BuzzBot.Epgp
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace BuzzBot.Epgp
 {
     public interface IEpgpConfigurationService
     {
@@ -7,5 +9,6 @@
         void AddTemplate(EpgpRaidTemplate template);
         void DeleteTemplate(string templateId);
         void UpdateTemplate(string templateId, int key, int value);
+        EpgpRaidTemplate GetTemplate([NotNull] string templateId);
     }
 }

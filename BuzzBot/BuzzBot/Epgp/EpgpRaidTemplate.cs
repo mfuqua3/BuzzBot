@@ -2,7 +2,6 @@
 {
     public class EpgpRaidTemplate
     {
-        [ConfigurationKey(0)]
         public string TemplateId { get; set; }
         [ConfigurationKey(1)]
         public int RaidCapacity { get; set; }

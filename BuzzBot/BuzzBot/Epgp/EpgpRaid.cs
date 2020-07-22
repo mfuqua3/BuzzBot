@@ -10,6 +10,7 @@ namespace BuzzBot.Epgp
         public int EndBonus { get; set; }
         public int TimeBonus { get; set; }
         public TimeSpan TimeBonusDuration { get; set; }
+        public TimeSpan Duration { get; set; }
         public ulong RaidLeader { get; set; }
         public int Capacity { get; set; }
         public int Joined => Casters.Count + Tanks.Count + Melee.Count + Healers.Count + Ranged.Count;

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using BuzzBot.Discord.Extensions;
 using BuzzBot.Epgp;
 using Discord;
 using Discord.WebSocket;
@@ -54,7 +55,7 @@ namespace BuzzBot.Discord.Services
 
         public const string EmptySpace = "\u200b";
 
-        private readonly List<RaidData> _activeRaidMessages = new List<RaidData>();
+        private readonly Dictionary<ulong, RaidData> _activeRaidMessages = new Dictionary<ulong, RaidData>();
 
         public RaidService(DiscordSocketClient client)
         {
@@ -65,8 +66,8 @@ namespace BuzzBot.Discord.Services
         private async Task ReactionRemoved(Cacheable<IUserMessage, ulong> _, ISocketMessageChannel __, SocketReaction reaction)
         {
             if (reaction.User.Value.IsBot) return;
-            if (_activeRaidMessages.All(msg => msg.Id != reaction.MessageId)) return;
-            var raid = _activeRaidMessages.First(rd => rd.Id == reaction.MessageId);
+            if (_activeRaidMessages.ContainsKey(reaction.MessageId)) return;
+            var raid = _activeRaidMessages[reaction.MessageId];
             HashSet<RaidParticipant> roleCollection;
             switch (reaction.Emote.Name)
             {
@@ -91,7 +92,7 @@ namespace BuzzBot.Discord.Services
             }
 
             if (!(reaction.User.Value is IGuildUser guildUser)) return;
-            var wowClass = GetClass(guildUser);
+            var wowClass = guildUser.GetClass();
             var participant = new RaidParticipant(reaction.UserId, wowClass);
             roleCollection.Remove(participant);
             var embed = CreateEmbed(raid.RaidObject);
@@ -102,8 +103,8 @@ namespace BuzzBot.Discord.Services
         {
 
             if (reaction.User.Value.IsBot) return;
-            if (_activeRaidMessages.All(msg => msg.Id != reaction.MessageId)) return;
-            var raid = _activeRaidMessages.First(rd => rd.Id == reaction.MessageId);
+            if (_activeRaidMessages.ContainsKey(reaction.MessageId)) return;
+            var raid = _activeRaidMessages[reaction.MessageId];
             HashSet<RaidParticipant> roleCollection;
             switch (reaction.Emote.Name)
             {
@@ -128,7 +129,7 @@ namespace BuzzBot.Discord.Services
             }
 
             if (!(reaction.User.Value is IGuildUser guildUser)) return;
-            var wowClass = GetClass(guildUser);
+            var wowClass = guildUser.GetClass();
             var participant = new RaidParticipant(reaction.UserId, wowClass);
             raid.RaidObject.Melee.Remove(participant);
             raid.RaidObject.Casters.Remove(participant);
@@ -140,55 +141,19 @@ namespace BuzzBot.Discord.Services
             await raid.Message.ModifyAsync(opt => opt.Embed = embed);
         }
 
-        private WowClass GetClass(IGuildUser guildUser)
-        {
-            var guild = guildUser.Guild;
-            foreach (var roleId in guildUser.RoleIds)
-            {
-                var role = guild.GetRole(roleId);
-                switch (role.Name)
-                {
-                    case { } s when s.Equals("warrior", StringComparison.CurrentCultureIgnoreCase):
-                        return WowClass.Warrior;
-                    case { } s when s.Equals("paladin", StringComparison.CurrentCultureIgnoreCase):
-                        return WowClass.Paladin;
-                    case { } s when s.Equals("hunter", StringComparison.CurrentCultureIgnoreCase):
-                        return WowClass.Hunter;
-                    case { } s when s.Equals("shaman", StringComparison.CurrentCultureIgnoreCase):
-                        return WowClass.Shaman;
-                    case { } s when s.Equals("rogue", StringComparison.CurrentCultureIgnoreCase):
-                        return WowClass.Rogue;
-                    case { } s when s.Equals("druid", StringComparison.CurrentCultureIgnoreCase):
-                        return WowClass.Druid;
-                    case { } s when s.Equals("warlock", StringComparison.CurrentCultureIgnoreCase):
-                        return WowClass.Warlock;
-                    case { } s when s.Equals("priest", StringComparison.CurrentCultureIgnoreCase):
-                        return WowClass.Priest;
-                    case { } s when s.Equals("mage", StringComparison.CurrentCultureIgnoreCase):
-                        return WowClass.Mage;
-                    default:
-                        continue;
-                }
-            }
 
-            return WowClass.Unknown;
-        }
-
-        public async Task PostRaid(ReplyDelegate replyDelegate, EpgpRaid raidObject)
+        public async Task<ulong> PostRaid(ReplyDelegate replyDelegate, EpgpRaid raidObject)
         {
             var message = await replyDelegate("", false, CreateEmbed(raidObject), null);
-            _activeRaidMessages.Add(new RaidData(message, raidObject));
-            await message.AddReactionAsync(GetEmote(CasterEmote));
-            await message.AddReactionAsync(GetEmote(MeleeEmote));
-            await message.AddReactionAsync(GetEmote(RangedEmote));
-            await message.AddReactionAsync(GetEmote(TankEmote));
-            await message.AddReactionAsync(GetEmote(HealerEmote));
+            var raidData = new RaidData(message, raidObject);
+            _activeRaidMessages.Add(raidData.Id, raidData);
+            await message.AddReactionAsync(Emote.Parse(CasterEmote));
+            await message.AddReactionAsync(Emote.Parse(MeleeEmote));
+            await message.AddReactionAsync(Emote.Parse(RangedEmote));
+            await message.AddReactionAsync(Emote.Parse(TankEmote));
+            await message.AddReactionAsync(Emote.Parse(HealerEmote));
             await message.AddReactionAsync(new Emoji("❌"));
-        }
-
-        private Emote GetEmote(string emoteString)
-        {
-            return Emote.Parse(emoteString);
+            return raidData.Id;
         }
 
         private Embed CreateEmbed(EpgpRaid raidData)
@@ -198,7 +163,7 @@ namespace BuzzBot.Discord.Services
                 .WithTitle("__Raid Event__")
                 .AddField(":busts_in_silhouette: Joined", $"{raidData.Joined}/{raidData.Capacity}", true)
                 .AddField(":crown: Raid Leader", $"<@{raidData.RaidLeader}>", true)
-                .AddField(":speaker: Source Channel", $"{EmptySpace}", true)
+                .AddField(":hourglass: Duration", $"{raidData.Duration.Hours} hrs {raidData.Duration.Minutes} mins", true)
                 .AddField(":coffee: Start bonus", $"{raidData.StartBonus} EP", true)
                 .AddField(":clock1: Time bonus", $"{raidData.TimeBonus} EP per {raidData.TimeBonusDuration.Minutes} mins", true)
                 .AddField(":beers: End bonus", $"{raidData.EndBonus} EP", true)

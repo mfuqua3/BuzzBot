@@ -21,7 +21,7 @@ namespace BuzzBot.Epgp
         {
             var fileDir = Directory.GetCurrentDirectory();
             _filePath = Path.Combine(fileDir, @"epgpconfig.json");
-            if (!File.Exists(fileDir))
+            if (!File.Exists(_filePath))
             {
                 _configuration = new EpgpConfiguration
                 {
@@ -53,22 +53,23 @@ namespace BuzzBot.Epgp
             Save();
         }
 
+        public EpgpRaidTemplate GetTemplate([NotNull] string templateId)
+        {
+            var toReturn = _configuration.Templates.FirstOrDefault(t => t.TemplateId == templateId);
+            if (toReturn == null)
+                throw new ArgumentException($"No template by the name of {templateId}. Template names are case sensitive");
+            return toReturn;
+        }
         public void DeleteTemplate([NotNull] string templateId)
         {
-            var toRemove = _configuration.Templates.FirstOrDefault(t => t.TemplateId == templateId);
-            if (toRemove == null)
-                throw new ArgumentException($"No template by the name of {templateId}. Template names are case sensitive");
+            var toRemove = GetTemplate(templateId);
             _configuration.Templates.Remove(toRemove);
             Save();
         }
 
         public void UpdateTemplate([NotNull] string templateId, int key, int value)
         {
-            var template = _configuration.Templates.FirstOrDefault(t => t.TemplateId == templateId);
-            if (template == null)
-            {
-                throw new ArgumentException($"No template by the name of {templateId}. Template names are case sensitive");
-            }
+            var template = GetTemplate(templateId);
             UpdateConfig(template, key, value);
         }
 

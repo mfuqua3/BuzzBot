@@ -23,9 +23,11 @@ namespace BuzzBot.Epgp
             {
                 StartBonus = template.StartBonus,
                 EndBonus = template.EndBonus,
+                Duration = TimeSpan.FromMinutes(template.RaidDurationMinutes),
                 TimeBonusDuration = TimeSpan.FromMinutes(template.TimeBonusDurationMinutes),
                 Capacity = template.RaidCapacity,
-                StartTime = startTimeEst
+                StartTime = startTimeEst,
+                TimeBonus = template.TimeBonus
             };
         }
     }
