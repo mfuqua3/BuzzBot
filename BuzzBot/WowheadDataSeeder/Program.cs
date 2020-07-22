@@ -6,6 +6,8 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using BuzzBotData.Data;
 using FileHelpers;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Primitives;
 using WowheadDataSeeder.Properties;
 using WowheadDataSeeder.Wowhead;
 
@@ -43,7 +45,7 @@ namespace WowheadDataSeeder
 
             //instantiate the WowheadClient
             var wowheadClient = new WowheadClient();
-            var db = new GuildBankDbContext();
+            var db = new BuzzBotDbContext(new MockConfig());
 
             db.Database.EnsureCreated();
             foreach (var item in itemsList)
@@ -65,6 +67,30 @@ namespace WowheadDataSeeder
 
             //Save the database.
             db.SaveChanges();
+        }
+    }
+
+    public class MockConfig : IConfiguration
+    {
+        public IConfigurationSection GetSection(string key)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IEnumerable<IConfigurationSection> GetChildren()
+        {
+            throw new NotImplementedException();
+        }
+
+        public IChangeToken GetReloadToken()
+        {
+            throw new NotImplementedException();
+        }
+
+        public string this[string key]
+        {
+            get => "DataSource=BuzzBotData.db";
+            set => throw new NotImplementedException();
         }
     }
 }

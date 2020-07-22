@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using BuzzBot.ClassicGuildBank.Buzz;
 using BuzzBot.Discord.Services;
+using BuzzBot.Discord.Utility;
 using BuzzBotData.Repositories;
 using Discord;
 using Discord.Commands;
@@ -18,14 +20,68 @@ namespace BuzzBot.Discord.Modules
         private readonly ItemRequestService _itemRequestService;
         private readonly AdministrationService _administrationService;
         private readonly GuildBankRepository _bankRepository;
+        private readonly PageService _pageService;
         public const string GroupName = "bank";
-        public BankModule(ClassicGuildBankClient client, CommandService commandService, ItemRequestService itemRequestService, AdministrationService administrationService, GuildBankRepository bankRepository)
+        public BankModule(
+            ClassicGuildBankClient client, 
+            CommandService commandService, 
+            ItemRequestService itemRequestService, 
+            AdministrationService administrationService, 
+            GuildBankRepository bankRepository,
+            PageService pageService)
         {
             _client = client;
             _commandService = commandService;
             _itemRequestService = itemRequestService;
             _administrationService = administrationService;
             _bankRepository = bankRepository;
+            _pageService = pageService;
+        }
+        [Command("all")]
+        public async Task All()
+        {
+            var characters = _bankRepository.GetCharacters();
+            var pageBuilder = new PageFormatBuilder();
+            pageBuilder.AddColumn("Item Name")
+                .AddColumn("Quantity")
+                .AddColumn("Bank Character")
+                .AlternateRowColors();
+            var itemData = new List<ItemData>();
+            foreach (var character in characters)
+            foreach (var bag in character.Bags)
+            foreach (var bagSlot in bag.BagSlots)
+            {
+                var item = itemData.FirstOrDefault(itm =>
+                    itm.Name == bagSlot.Item?.Name && itm.Character == character.Name);
+                if (item == null)
+                {
+                    item = new ItemData
+                    {
+                        Character = character.Name,
+                        Quantity = 0,
+                        Name = bagSlot.Item?.Name
+                    };
+                    itemData.Add(item);
+                }
+
+                item.Quantity += bagSlot.Quantity;
+            }
+
+            foreach (var data in itemData.OrderBy(itm=>itm.Name))
+            {
+                pageBuilder.AddRow(new[] {data.Name, data.Quantity.ToString(), data.Character});
+            }
+
+            var format = pageBuilder.Build();
+            await _pageService.SendPages(Context.Channel, $"{format.HeaderLine}\n{format.HorizontalRule}",
+                format.ContentLines.ToArray());
+        }
+
+        private class ItemData
+        {
+            public string Name { get; set; }
+            public int Quantity { get; set; }
+            public string Character { get; set; }
         }
 
         [Command("help")]

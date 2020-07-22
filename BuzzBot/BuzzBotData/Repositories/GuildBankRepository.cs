@@ -9,9 +9,9 @@ namespace BuzzBotData.Repositories
 {
     public class GuildBankRepository
     {
-        private readonly GuildBankDbContext _dbContext;
+        private readonly BuzzBotDbContext _dbContext;
 
-        public GuildBankRepository(GuildBankDbContext dbContext)
+        public GuildBankRepository(BuzzBotDbContext dbContext)
         {
             dbContext.Database.EnsureCreated();
             _dbContext = dbContext;
