@@ -3,16 +3,14 @@ using System;
 using BuzzBotData.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace BuzzBotData.Migrations
 {
-    [DbContext(typeof(GuildBankDbContext))]
-    [Migration("20200712030958_seeded_data")]
-    partial class seeded_data
+    [DbContext(typeof(BuzzBotDbContext))]
+    partial class BuzzBotDbContexttModelSnapshot : ModelSnapshot
     {
-        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -91,6 +89,65 @@ namespace BuzzBotData.Migrations
                     b.ToTable("Character");
                 });
 
+            modelBuilder.Entity("BuzzBotData.Data.EpgpAlias", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Class")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("EffortPoints")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("GearPoints")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
+                    b.Property<ulong>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Aliases");
+                });
+
+            modelBuilder.Entity("BuzzBotData.Data.EpgpTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AliasId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Memo")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("TransactionDateTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TransactionType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Value")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AliasId");
+
+                    b.ToTable("EpgpTransactions");
+                });
+
             modelBuilder.Entity("BuzzBotData.Data.Guild", b =>
                 {
                     b.Property<Guid>("Id")
@@ -119,23 +176,15 @@ namespace BuzzBotData.Migrations
                     b.ToTable("Guild");
                 });
 
-            modelBuilder.Entity("BuzzBotData.Data.GuildMember", b =>
+            modelBuilder.Entity("BuzzBotData.Data.GuildUser", b =>
                 {
-                    b.Property<Guid>("GuildId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("CanUpload")
+                    b.Property<ulong>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("DisplayName")
-                        .HasColumnType("TEXT");
+                    b.HasKey("Id");
 
-                    b.HasKey("GuildId", "UserId");
-
-                    b.ToTable("GuildRole");
+                    b.ToTable("GuildUsers");
                 });
 
             modelBuilder.Entity("BuzzBotData.Data.Item", b =>
@@ -334,11 +383,20 @@ namespace BuzzBotData.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("BuzzBotData.Data.GuildMember", b =>
+            modelBuilder.Entity("BuzzBotData.Data.EpgpAlias", b =>
                 {
-                    b.HasOne("BuzzBotData.Data.Guild", "Guild")
-                        .WithMany("GuildMembers")
-                        .HasForeignKey("GuildId")
+                    b.HasOne("BuzzBotData.Data.GuildUser", "User")
+                        .WithMany("Aliases")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuzzBotData.Data.EpgpTransaction", b =>
+                {
+                    b.HasOne("BuzzBotData.Data.EpgpAlias", "Alias")
+                        .WithMany("Transactions")
+                        .HasForeignKey("AliasId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -346,7 +404,7 @@ namespace BuzzBotData.Migrations
             modelBuilder.Entity("BuzzBotData.Data.ItemRequest", b =>
                 {
                     b.HasOne("BuzzBotData.Data.Guild", "Guild")
-                        .WithMany("ItemRequests")
+                        .WithMany()
                         .HasForeignKey("GuildId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -368,7 +426,7 @@ namespace BuzzBotData.Migrations
             modelBuilder.Entity("BuzzBotData.Data.Transaction", b =>
                 {
                     b.HasOne("BuzzBotData.Data.Guild", "Guild")
-                        .WithMany("Transactions")
+                        .WithMany()
                         .HasForeignKey("GuildId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

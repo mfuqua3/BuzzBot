@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace BuzzBotData.Migrations
 {
-    [DbContext(typeof(GuildBankDbContext))]
+    [DbContext(typeof(BuzzBotDbContext))]
     [Migration("20200715223440_removed_guild_member_table")]
     partial class removed_guild_member_table
     {
