@@ -27,7 +27,7 @@ namespace BuzzBot.Discord.Modules
         [Alias("start")]
         public async Task Begin()
         {
-            var raid = _raidFactory.CreateNew(15, 10, 2, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(30), 40);
+            var raid = _raidFactory.CreateNew(TODO);
             raid.RaidLeader = Context.User.Id;
             await _raidService.PostRaid(ReplyAsync, raid);
         }

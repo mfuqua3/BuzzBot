@@ -3,30 +3,6 @@ using System.Collections.Generic;
 
 namespace BuzzBot.Epgp
 {
-    public interface IRaidFactory
-    {
-        EpgpRaid CreateNew(int startBonus, int endBonus, int timeBonus, TimeSpan bonusDuration, TimeSpan signupDuration, int capacity);
-    }
-
-    class RaidFactory : IRaidFactory
-    {
-        public EpgpRaid CreateNew(int startBonus, int endBonus, int timeBonus, TimeSpan bonusDuration, TimeSpan signupDuration, int capacity)
-        {
-            var tzi = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
-            var startTime = DateTime.UtcNow + signupDuration;
-            var startTimeEst = TimeZoneInfo.ConvertTimeFromUtc(startTime, tzi);
-            return new EpgpRaid
-            {
-                StartBonus = startBonus,
-                EndBonus = endBonus,
-                TimeBonusDuration = bonusDuration,
-                Capacity = capacity,
-                StartTime = startTimeEst
-            };
-        }
-    }
-
-
     public class EpgpRaid
     {
         public DateTime StartTime { get; set; }
@@ -42,31 +18,5 @@ namespace BuzzBot.Epgp
         public HashSet<RaidParticipant> Melee { get; set; } = new HashSet<RaidParticipant>();
         public HashSet<RaidParticipant> Healers { get; set; } = new HashSet<RaidParticipant>();
         public HashSet<RaidParticipant> Ranged { get; set; } = new HashSet<RaidParticipant>();
-    }
-
-    public struct RaidParticipant
-    {
-        public RaidParticipant(ulong id, WowClass wowClass)
-        {
-            Id = id;
-            WowClass = wowClass;
-        }
-
-        public ulong Id { get;  }
-        public WowClass WowClass { get;  }
-    }
-
-    public enum WowClass
-    {
-        Unknown,
-        Warrior,
-        Paladin,
-        Hunter,
-        Shaman,
-        Rogue,
-        Druid,
-        Warlock,
-        Mage,
-        Priest
     }
 }
