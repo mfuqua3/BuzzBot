@@ -8,8 +8,9 @@ namespace BuzzBotData.Extensions
     {
         public static IServiceCollection AddData(this IServiceCollection services)
         {
-            services.AddSingleton<GuildBankDbContext>()
-                .AddSingleton<GuildBankRepository>();
+            services.AddSingleton<BuzzBotDbContext>()
+                .AddSingleton<GuildBankRepository>()
+                .AddSingleton<EpgpRepository>();
             return services;
         }
     }

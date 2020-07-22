@@ -16,7 +16,11 @@ namespace BuzzBot.Discord.Extensions
                 .AddSingleton<CommandHandlingService>()
                 .AddSingleton<LogService>()
                 .AddSingleton<ItemRequestService>()
-                .AddSingleton<RaidService>();
+                .AddSingleton<RaidService>()
+                .AddTransient<PriorityReportingService>()
+                .AddSingleton<PageService>()
+                .AddSingleton<QueryService>()
+                .AddTransient<AuditService>();
             return services;
         }
     }

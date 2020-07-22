@@ -1,19 +1,28 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace BuzzBotData.Data
 {
-    public class GuildBankDbContext : DbContext
+    public class BuzzBotDbContext : DbContext
     {
+        private readonly string _connectionString;
         public DbSet<Guild> Guilds { get; set; }
         public DbSet<Character> Characters { get; set; }
         public DbSet<Bag> Bags { get; set; }
         public DbSet<BagSlot> BagSlots { get; set; }
         public DbSet<Item> Items { get; set; }
+        public DbSet<GuildUser> GuildUsers { get; set; }
+        public DbSet<EpgpAlias> Aliases { get; set; }
+        public DbSet<EpgpTransaction> EpgpTransactions { get; set; }
 
+        public BuzzBotDbContext(IConfiguration configuration)
+        {
+            _connectionString = configuration["connectionString"];
+        }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseSqlite("DataSource=guildbank.db");
+            optionsBuilder.UseSqlite(_connectionString);
             optionsBuilder.EnableSensitiveDataLogging();
         }
 

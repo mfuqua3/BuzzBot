@@ -9,7 +9,8 @@ namespace BuzzBot.Epgp.Extensions
         {
             services.AddSingleton<EpgpCalculator>()
                 .AddTransient<IRaidFactory, RaidFactory>()
-                .AddSingleton<IEpgpConfigurationService, EpgpConfigurationService>();
+                .AddSingleton<IEpgpConfigurationService, EpgpConfigurationService>()
+                .AddTransient<EpgpService>();
             return services;
         }
     }
