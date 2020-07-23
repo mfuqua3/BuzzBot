@@ -5,6 +5,7 @@ namespace BuzzBot.Epgp
 {
     public class EpgpRaid
     {
+        public bool Started { get; set; }
         public DateTime StartTime { get; set; }
         public int StartBonus { get; set; }
         public int EndBonus { get; set; }

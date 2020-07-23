@@ -1,7 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Services;
 using BuzzBot.Epgp;
 using BuzzBotData.Data;
@@ -19,24 +23,35 @@ namespace BuzzBot.Discord.Modules
         private readonly EpgpRepository _repository;
         private readonly PriorityReportingService _priorityReportingService;
         private readonly QueryService _queryService;
-        private readonly EpgpService _epgpService;
+        private readonly IEpgpService _epgpService;
         private readonly AuditService _auditService;
+        private readonly ItemRepository _itemRepository;
+        private readonly EpgpCalculator _epgpCalculator;
         public const string GroupName = "epgp";
 
-        public EpgpModule(EpgpRepository repository, PriorityReportingService priorityReportingService, QueryService queryService, EpgpService epgpService, AuditService auditService)
+        public EpgpModule(
+            EpgpRepository repository,
+            PriorityReportingService priorityReportingService,
+            QueryService queryService,
+            IEpgpService epgpService,
+            AuditService auditService,
+            ItemRepository itemRepository,
+            EpgpCalculator epgpCalculator)
         {
             _repository = repository;
             _priorityReportingService = priorityReportingService;
             _queryService = queryService;
             _epgpService = epgpService;
             _auditService = auditService;
+            _itemRepository = itemRepository;
+            _epgpCalculator = epgpCalculator;
         }
 
         [Command("decay")]
         [RequiresBotAdmin]
-        public async Task Decay(int percentage, string epgpFlag = null)
+        public Task Decay(int percentage, string epgpFlag = null)
         {
-            await _queryService.SendQuery($"Decay all user EP/GP values by {percentage}%?", Context.Channel,
+            Task.Run(async () => await _queryService.SendQuery($"Decay all user EP/GP values by {percentage}%?", Context.Channel,
                 async () =>
                 {
                     _epgpService.Decay(percentage, epgpFlag);
@@ -45,7 +60,86 @@ namespace BuzzBot.Discord.Modules
                 async () =>
                 {
                     await ReplyAsync("Decay operation cancelled.");
-                });
+                }));
+            return Task.CompletedTask;
+        }
+
+        [Command("gp")]
+        public async Task GearPoints(IGuildUser user, [Remainder] string queryString)
+        {
+            var items = _itemRepository.GetItems(queryString).OrderByDescending(itm => itm.ItemLevel).ToList();
+            if (items.Count == 0)
+            {
+                await ReplyAsync($"\"{queryString}\" returned no results.");
+                return;
+            }
+            if (items.Count == 1)
+            {
+                await GiveItemGearPoints(user, items.First());
+                return;
+            }
+
+#pragma warning disable 4014
+            Task.Run(async () =>
+#pragma warning restore 4014
+            {
+                var result = await _queryService.SendOptionSelectQuery(
+                    $"\"{queryString}\" yielded multiple results. Please select below",
+                    items,
+                    (itm) => itm.Name,
+                    Context.Channel, CancellationToken.None);
+                if (result == 0) return;
+                await GiveItemGearPoints(user, items[result - 1]);
+            });
+        }
+
+        [Command("cost")]
+        public async Task Cost([Remainder] string queryString)
+        {
+            var isHunter = queryString.EndsWith(" -h");
+            if (isHunter)
+                queryString = queryString.Substring(0, queryString.Length - 3);
+
+            var items = _itemRepository.GetItems(queryString).OrderByDescending(itm => itm.ItemLevel).ToList();
+            if (items.Count == 0)
+            {
+                await ReplyAsync($"\"{queryString}\" returned no results.");
+                return;
+            }
+            if (items.Count == 1)
+            {
+                await ReplyAsync("", false, CreateItemEmbed(items.First(), isHunter, out _));
+                return;
+            }
+
+#pragma warning disable 4014
+            Task.Run(async () =>
+#pragma warning restore 4014
+            {
+                var result = await _queryService.SendOptionSelectQuery(
+                    $"\"{queryString}\" yielded multiple results. Please select below",
+                    items,
+                    (itm) => itm.Name,
+                    Context.Channel, CancellationToken.None);
+                if (result == 0) return;
+                await ReplyAsync("", false, CreateItemEmbed(items[result - 1], isHunter, out _));
+            });
+        }
+
+        private Embed CreateItemEmbed(Item item, bool isHunter, out double gp)
+        {
+            gp = _epgpCalculator.Calculate(item, isHunter);
+            var embed = new EmbedBuilder();
+            embed.WithTitle($"{item.Name} : {gp:F0} GP");
+            embed.WithImageUrl($"http://www.korkd.com/wow_img/{item.Id}.png");
+            return embed.Build();
+        }
+
+        private async Task GiveItemGearPoints(IGuildUser user, Item item)
+        {
+            var embed = CreateItemEmbed(item, user.GetClass() == WowClass.Hunter, out var value);
+            await ReplyAsync($"Assigning to <@{user.Id}>", false, embed);
+            _epgpService.Gp(user.GetAliasName(), (int)Math.Round(value), item.Name, TransactionType.GpFromGear);
         }
 
         [Command("audit")]
@@ -57,7 +151,7 @@ namespace BuzzBot.Discord.Modules
         {
             await _auditService.Audit(aliasName, Context.Channel);
         }
-        
+
 
         [Command("pr")]
         public async Task PrintPriority()
@@ -69,6 +163,25 @@ namespace BuzzBot.Discord.Modules
         public async Task PrintPriority(params string[] userNames)
         {
             await _priorityReportingService.ReportAliases(Context.Channel, userNames);
+        }
+
+        [Command("pr")]
+        public async Task PrintPriority(params IMentionable[] mentionables)
+        {
+            var roles = mentionables.Where(m => m is IRole).Cast<IRole>();
+            var users = mentionables.Where(m => m is IGuildUser).Cast<IGuildUser>().ToList();
+            foreach (var role in roles)
+            {
+                users.AddRange(Context.Guild.Users.Where(usr => usr.Roles.Contains(role)));
+            }
+
+            await PrintPriority(users.ToArray());
+        }
+        [Command("pr")]
+        public async Task PrintPriority(params IGuildUser[] users)
+        {
+            var prunedUsers = users.Select(usr => usr.GetAliasName()).Distinct();
+            await PrintPriority(prunedUsers.ToArray());
         }
 
         [Command("add")]
@@ -84,8 +197,8 @@ namespace BuzzBot.Discord.Modules
 
             var id = user.Id;
             _repository.AddGuildUser(id);
-            var userClass = GetClass(user);
-            if (userClass == null)
+            var userClass = user.GetClass();
+            if (userClass == WowClass.Unknown)
             {
                 await ReplyAsync("Unable to infer class for specified user. No primary alias will be created");
                 return;
@@ -115,8 +228,7 @@ namespace BuzzBot.Discord.Modules
             }
 
             var id = user.Id;
-            var userClass = GetClass(className);
-            if (userClass == null)
+            if (!className.TryParseClass(out var userClass))
             {
                 await ReplyAsync("Unable to parse class from provided class argument");
                 return;
@@ -135,45 +247,6 @@ namespace BuzzBot.Discord.Modules
             await ReplyAsync($"New alias add to {userName}: \"{aliasName} : {userClass}\"");
         }
 
-        private Class? GetClass(IGuildUser guildUser)
-        {
-            var guild = guildUser.Guild;
-            foreach (var roleId in guildUser.RoleIds)
-            {
-                var role = guild.GetRole(roleId);
-                var userClass = GetClass(role.Name);
-                if (userClass == null) continue;
-                return userClass;
-            }
 
-            return null;
-        }
-
-        private Class? GetClass(string classString)
-        {
-            switch (classString)
-            {
-                case { } s when s.Equals("warrior", StringComparison.CurrentCultureIgnoreCase):
-                    return Class.Warrior;
-                case { } s when s.Equals("paladin", StringComparison.CurrentCultureIgnoreCase):
-                    return Class.Paladin;
-                case { } s when s.Equals("hunter", StringComparison.CurrentCultureIgnoreCase):
-                    return Class.Hunter;
-                case { } s when s.Equals("shaman", StringComparison.CurrentCultureIgnoreCase):
-                    return Class.Shaman;
-                case { } s when s.Equals("rogue", StringComparison.CurrentCultureIgnoreCase):
-                    return Class.Rogue;
-                case { } s when s.Equals("druid", StringComparison.CurrentCultureIgnoreCase):
-                    return Class.Druid;
-                case { } s when s.Equals("warlock", StringComparison.CurrentCultureIgnoreCase):
-                    return Class.Warlock;
-                case { } s when s.Equals("priest", StringComparison.CurrentCultureIgnoreCase):
-                    return Class.Priest;
-                case { } s when s.Equals("mage", StringComparison.CurrentCultureIgnoreCase):
-                    return Class.Mage;
-                default:
-                    return null;
-            }
-        }
     }
 }

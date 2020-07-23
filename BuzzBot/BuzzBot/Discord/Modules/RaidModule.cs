@@ -17,7 +17,7 @@ namespace BuzzBot.Discord.Modules
     public class RaidModule : ModuleBase<SocketCommandContext>
     {
         private const string GroupName = "raid";
-        private readonly RaidService _raidService;
+        private readonly IRaidService _raidService;
         private readonly IRaidFactory _raidFactory;
         private readonly IEpgpConfigurationService _epgpConfigurationService;
         private readonly CommandService _commandService;
@@ -25,7 +25,7 @@ namespace BuzzBot.Discord.Modules
         private readonly PageService _pageService;
 
         public RaidModule(
-            RaidService raidService,
+            IRaidService raidService,
             IRaidFactory raidFactory,
             IEpgpConfigurationService epgpConfigurationService,
             CommandService commandService,

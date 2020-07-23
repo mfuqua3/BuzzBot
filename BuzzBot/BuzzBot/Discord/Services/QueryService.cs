@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using BuzzBot.Discord.Extensions;
@@ -12,20 +15,82 @@ namespace BuzzBot.Discord.Services
     {
         public const string Confirm = @"✔️";
         public const string Cancel = @"❌";
+
+        public const string One = @"1️⃣";
+        public const string Two = @"2️⃣";
+        public const string Three = @"3️⃣";
+        public const string Four = @"4️⃣";
+        public const string Five = @"5️⃣";
+
+        private const int SupportedQueryOptions = 5;
+
+        private readonly Dictionary<int, string> _optionsDictionary = new Dictionary<int, string>
+        {
+            {1,One},
+            {2,Two},
+            {3,Three},
+            {4,Four},
+            {5,Five}
+        };
+
+        private readonly Dictionary<string, int> _resultDictionary;
+
         private readonly ConcurrentDictionary<ulong, Query> _activeQueries = new ConcurrentDictionary<ulong, Query>();
 
         public QueryService(DiscordSocketClient discordClient)
         {
+            _resultDictionary = new Dictionary<string, int>
+            {
+                {Cancel, 0 },
+                {Confirm,1 }
+            };
+            _resultDictionary = _resultDictionary.Merge(_optionsDictionary.ToDictionary(kvp => kvp.Value, kvp => kvp.Key));
             discordClient.ReactionAdded += ReactionAdded;
         }
 
         private async Task ReactionAdded(Cacheable<IUserMessage, ulong> _, ISocketMessageChannel __, SocketReaction reaction)
         {
-            if (!reaction.ValidateReaction(Confirm, Cancel) || !_activeQueries.ContainsKey(reaction.MessageId)) return;
+            if (!reaction.ValidateReaction(_resultDictionary.Keys.ToArray()) || !_activeQueries.ContainsKey(reaction.MessageId)) return;
             if (!_activeQueries.TryRemove(reaction.MessageId, out var query)) return;
-            query.QueryTcs.TrySetResult(reaction.Emote.Name.Equals(Confirm));
+            query.QueryTcs.TrySetResult(_resultDictionary[reaction.Emote.Name]);
         }
 
+        public async Task<int> SendOptionSelectQuery<T>(string query, List<T> options, Func<T, string> optionQueryBuilder, IMessageChannel channel, CancellationToken token)
+        {
+            if (!options.Any()) return 0;
+            if (options.Count == 1) return 1;
+            var truncated = options.Count > SupportedQueryOptions;
+            var querySb = new StringBuilder();
+            querySb.AppendLine(query);
+            if (truncated)
+            {
+                querySb.AppendLine(
+                    $"List has been truncated to {SupportedQueryOptions} options, out of {options.Count} total. Consider revising your query.");
+            }
+            for (int i = 0; i < options.Count; i++)
+            {
+                if (i == SupportedQueryOptions) break;
+                var line = $"{_optionsDictionary[i + 1]} - {optionQueryBuilder(options[i])}";
+                querySb.AppendLine(line);
+            }
+
+            querySb.Append($"Please select below, {Cancel} to cancel:");
+
+            var queryObj = new Query(TimeSpan.FromMinutes(1), channel.Id);
+            var embedBuilder = new EmbedBuilder();
+            embedBuilder.AddField("Query", querySb.ToString());
+            var message = await channel.SendMessageAsync("", false, embedBuilder.Build());
+            if (!_activeQueries.TryAdd(message.Id, queryObj)) return 0;
+
+            for (int i = 0; i < options.Count; i++)
+            {
+                if (i == SupportedQueryOptions) break;
+                await message.AddReactionAsync(new Emoji(_optionsDictionary[i + 1]));
+            }
+
+            await message.AddReactionAsync(new Emoji(Cancel));
+            return await AwaitQuery(queryObj);
+        }
         public async Task SendQuery(string queryString, IMessageChannel channel, Func<Task> onConfirm, Func<Task> onCancel)
         {
             var query = new Query(TimeSpan.FromMinutes(1), channel.Id);
@@ -35,24 +100,25 @@ namespace BuzzBot.Discord.Services
             if (!_activeQueries.TryAdd(message.Id, query)) return;
             await message.AddReactionAsync(new Emoji(Confirm));
             await message.AddReactionAsync(new Emoji(Cancel));
-            Task.Factory.StartNew(async () => AwaitQuery(query, onConfirm, onCancel), TaskCreationOptions.LongRunning);
+            var result = await AwaitQuery(query);
+            if (result == 1) await onConfirm();
+            if (result == 0) await onCancel();
         }
 
-        private async Task AwaitQuery(Query query, Func<Task> onConfirm, Func<Task> onCancel)
+        private async Task<int> AwaitQuery(Query query)
         {
-            bool result;
+            int result;
             try
             {
                 result = await query.QueryTcs.Task;
             }
             catch (TaskCanceledException)
             {
-                result = false;
+                result = 0;
             }
 
             _activeQueries.TryRemove(query.Key, out _);
-            if (result) await onConfirm();
-            else await onCancel();
+            return result;
         }
 
         private class Query
@@ -61,10 +127,10 @@ namespace BuzzBot.Discord.Services
             {
                 Key = key;
                 var cts = new CancellationTokenSource(timeout);
-                QueryTcs = new TaskCompletionSource<bool>(cts.Token);
+                QueryTcs = new TaskCompletionSource<int>(cts.Token);
             }
             public ulong Key { get; }
-            public TaskCompletionSource<bool> QueryTcs { get; }
+            public TaskCompletionSource<int> QueryTcs { get; }
         }
     }
 }
