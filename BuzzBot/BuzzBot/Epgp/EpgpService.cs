@@ -4,7 +4,7 @@ using BuzzBotData.Repositories;
 
 namespace BuzzBot.Epgp
 {
-    public class EpgpService
+    public class EpgpService : IEpgpService
     {
         private readonly EpgpRepository _epgpRepository;
         public const string EpFlag = "-ep";
@@ -29,7 +29,19 @@ namespace BuzzBot.Epgp
             _epgpRepository.PostTransaction(transaction);
         }
 
-
+        public void Gp(string aliasName, int value, string memo, TransactionType type = TransactionType.GpManual)
+        {
+            var alias = _epgpRepository.GetAlias(aliasName);
+            var transaction = new EpgpTransaction
+            {
+                AliasId = alias.Id,
+                Memo = memo,
+                TransactionDateTime = DateTime.UtcNow,
+                TransactionType = type,
+                Value = value
+            };
+            _epgpRepository.PostTransaction(transaction);
+        }
 
 
         public void Decay(int decayPercent)

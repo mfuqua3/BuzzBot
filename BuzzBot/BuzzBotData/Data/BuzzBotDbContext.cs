@@ -15,6 +15,10 @@ namespace BuzzBotData.Data
         public DbSet<EpgpAlias> Aliases { get; set; }
         public DbSet<EpgpTransaction> EpgpTransactions { get; set; }
 
+        public BuzzBotDbContext()
+        {
+            _connectionString = "DataSource=BuzzBotData.db";
+        }
         public BuzzBotDbContext(IConfiguration configuration)
         {
             _connectionString = configuration["connectionString"];

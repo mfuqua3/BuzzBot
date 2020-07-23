@@ -3,14 +3,16 @@ using System;
 using BuzzBotData.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace BuzzBotData.Migrations
 {
     [DbContext(typeof(BuzzBotDbContext))]
-    partial class BuzzBotDbContexttModelSnapshot : ModelSnapshot
+    [Migration("20200722211021_item_updates_quality_and_ilevel")]
+    partial class item_updates_quality_and_ilevel
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -210,9 +212,6 @@ namespace BuzzBotData.Migrations
 
                     b.Property<string>("Icon")
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("InventorySlot")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("ItName")
                         .HasColumnType("TEXT");

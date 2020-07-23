@@ -146,7 +146,7 @@ namespace BuzzBot.Discord.Utility
 
         private string CreateLine(RowData rowData, List<int> columnSizes, bool alternate)
         {
-            var codeIdentifier = alternate ? "+ " : "- ";
+            var codeIdentifier = alternate ? "- " : "+ ";
             var lineSb = new StringBuilder(codeIdentifier);
             var sizeShouldBe = 2;
             for (var i = 0; i < rowData.Fields.Length; i++)

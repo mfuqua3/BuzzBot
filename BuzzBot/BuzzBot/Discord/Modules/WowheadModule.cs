@@ -1,41 +1,52 @@
 ﻿using System.Threading.Tasks;
+using BuzzBot.Discord.Services;
 using BuzzBot.Epgp;
 using BuzzBot.Wowhead;
+using BuzzBotData.Repositories;
 using Discord;
 using Discord.Commands;
 using Newtonsoft.Json;
 
 namespace BuzzBot.Discord.Modules
 {
-    public class WowheadModule:ModuleBase<SocketCommandContext>
+    public class WowheadModule : ModuleBase<SocketCommandContext>
     {
         private readonly IWowheadClient _wowheadClient;
         private readonly EpgpCalculator _epgpCalculator;
+        private readonly QueryService _queryService;
+        private readonly ItemRepository _itemRepository;
 
-        public WowheadModule(IWowheadClient wowheadClient, EpgpCalculator epgpCalculator)
+        public WowheadModule(IWowheadClient wowheadClient, EpgpCalculator epgpCalculator, QueryService queryService, ItemRepository itemRepository)
         {
             _wowheadClient = wowheadClient;
             _epgpCalculator = epgpCalculator;
+            _queryService = queryService;
+            _itemRepository = itemRepository;
         }
-        [Command("query")]
-        public async Task Query([Remainder] string query)
+        [Command("update_items")]
+        [RequiresBotAdmin]
+        public Task UpdateItems()
         {
-            var isHunter = query.EndsWith("-h");
-            if (isHunter)
-                query = query.Substring(0, query.Length - 2).TrimEnd();
-            var wowheadObj = await _wowheadClient.Get(query);
-            if (wowheadObj.Item == null)
+            Task.Run(async () => await _queryService.SendQuery(
+                "Are you sure you want to update all item data from Wowhead? This could take a long time.",
+                Context.Channel, async () => await ExecuteUpdate(), async () => await ReplyAsync("Cancelling update")));
+            return Task.CompletedTask;
+        }
+        private async Task ExecuteUpdate()
+        {
+            var items = _itemRepository.GetItems();
+            await ReplyAsync($"Beginning update for {items.Count} items.");
+            var count = 0;
+            foreach (var item in items)
             {
-                await ReplyAsync("No item found by that name");
-                return;
+                var wowheadData = await _wowheadClient.Get(item.Id.ToString());
+                if (wowheadData?.Item == null) continue;
+                if (int.TryParse(wowheadData.Item.InventorySlot?.Id, out var slot))
+                    item.InventorySlot = slot;
+                count++;
             }
-
-            var value = _epgpCalculator.Calculate(wowheadObj.Item, isHunter);
-            //var test = JsonConvert.DeserializeObject<WowheadJson>(wowheadObj.Item.Json);
-            var embed = new EmbedBuilder();
-            embed.WithTitle($"{wowheadObj.Item.Name} : {value:F0} GP");
-            embed.WithImageUrl($"http://www.korkd.com/wow_img/{wowheadObj.Item.Id}.png");
-            await ReplyAsync("", false, embed.Build());
+            _itemRepository.Save();
+            await ReplyAsync($"{count} items updated to new database schema successfully");
         }
     }
 }

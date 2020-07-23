@@ -57,6 +57,11 @@ namespace BuzzBotData.Repositories
             return _dbContext.Aliases.FirstOrDefault(a => a.Id == id);
         }
 
+        public EpgpAlias GetPrimaryAlias(ulong userId)
+        {
+            return GetAliasesForUser(userId).FirstOrDefault(a => a.IsPrimary);
+        }
+
         public ICollection<EpgpTransaction> GetTransactions(string alias)
         {
             return _dbContext.Aliases

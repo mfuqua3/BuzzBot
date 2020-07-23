@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Reflection;
 using System.Threading.Tasks;
+using BuzzBot.Discord.Utility;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
@@ -27,6 +28,7 @@ namespace BuzzBot.Discord.Services
         public async Task InitializeAsync(IServiceProvider provider)
         {
             _provider = provider;
+            _commands.AddTypeReader<IMentionable>(new MentionableTypeReader(), true);
             await _commands.AddModulesAsync(Assembly.GetExecutingAssembly(), _provider);
             // Add additional initialization code here...
         }

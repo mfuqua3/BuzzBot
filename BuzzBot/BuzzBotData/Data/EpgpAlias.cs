@@ -26,6 +26,7 @@ namespace BuzzBotData.Data
         Druid,
         Mage,
         Warlock,
-        Priest
+        Priest,
+        Undefined
     }
 }

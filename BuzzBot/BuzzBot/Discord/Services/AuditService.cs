@@ -19,7 +19,7 @@ namespace BuzzBot.Discord.Services
         }
         public async Task Audit(string aliasId, IMessageChannel messageChannel)
         {
-            var transactions = _epgpRepository.GetTransactions(aliasId).OrderBy(t => t.TransactionDateTime).ToList();
+            var transactions = _epgpRepository.GetTransactions(aliasId).OrderByDescending(t => t.TransactionDateTime).ToList();
             var builder = new PageFormatBuilder()
                 .AddColumn("Time (UTC)")
                 .AddColumn("Type")

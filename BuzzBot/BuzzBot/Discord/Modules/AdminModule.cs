@@ -1,5 +1,6 @@
 ﻿using System.Threading.Tasks;
 using BuzzBot.Discord.Services;
+using BuzzBot.Wowhead;
 using Discord.Commands;
 using Discord.WebSocket;
 
