@@ -183,17 +183,17 @@ namespace BuzzBot.Discord.Modules
                 var records = csv.GetRecords<EpgpCsvResult>();
                 foreach (var record in records)
                 {
-                    if (!_epgpService.Set(record.Name, record.EP, record.GP))
-                    {
-                        await ReplyAsync($"{record.Name} not set. (No record found)");
-                    }
+                    _epgpService.Set(record.Name, record.EP, record.GP);
                 }
             }
             catch (Exception)
             {
                 await ReplyAsync(
                     "An error occurred while attempting to parse the file from the specified message");
+                return;
             }
+
+            await ReplyAsync("Done.");
         }
 
         
@@ -205,7 +205,7 @@ namespace BuzzBot.Discord.Modules
         [Command("audit")]
         public async Task Audit(string aliasName)
         {
-            await _auditService.Audit(aliasName, Context.Channel);
+            await _auditService.Audit(aliasName, await Context.User.GetOrCreateDMChannelAsync());
         }
 
 
@@ -213,18 +213,23 @@ namespace BuzzBot.Discord.Modules
         [Alias("?")]
         public async Task Help() => await _documentationService.SendDocumentation(await Context.User.GetOrCreateDMChannelAsync(), GroupName, Context.User.Id);
         [Command("pr")]
+        [Summary("DMs the guilds priority list to requesting user")]
         public async Task PrintPriority()
         {
-            await _priorityReportingService.ReportAll(Context.Channel);
+            await _priorityReportingService.ReportAll(await Context.User.GetOrCreateDMChannelAsync());
         }
 
         [Command("pr")]
+        [Summary("DMs a trimmed priority list with the provided usernames")]
+        [Remarks(@"pr Azar Triqueta Fragrock")]
         public async Task PrintPriority(params string[] userNames)
         {
-            await _priorityReportingService.ReportAliases(Context.Channel, userNames);
+            await _priorityReportingService.ReportAliases(await Context.User.GetOrCreateDMChannelAsync(), userNames);
         }
 
         [Command("pr")]
+        [Summary("DMs a trimmed priority list with the provided mentions (roles and users)")]
+        [Remarks(@"pr @Druid @Shaman @Priest")]
         public async Task PrintPriority(params IMentionable[] mentionables)
         {
             var roles = mentionables.Where(m => m is IRole).Cast<IRole>();
@@ -244,6 +249,8 @@ namespace BuzzBot.Discord.Modules
         }
 
         [Command("config")]
+        [RequiresBotAdmin]
+        [Summary("Shows the EPGP configuration for the bot")]
         public async Task Configuration()
         {
             var config = _epgpConfigurationService.GetConfiguration();
@@ -273,6 +280,8 @@ namespace BuzzBot.Discord.Modules
         }
         [Command("config")]
         [RequiresBotAdmin]
+        [Summary("Changes a configuration property for the EPGP bot")]
+        [Remarks(@"config 2 15")]
         public async Task Configure(int key, int value)
         {
             _epgpConfigurationService.UpdateConfig(key, value);
@@ -281,6 +290,8 @@ namespace BuzzBot.Discord.Modules
 
         [Command("add")]
         [RequiresBotAdmin]
+        [Summary("Adds a user to the database")]
+        [Remarks("add Azar 1 25")]
         public async Task AddUser(string username, int ep = 0, int gp = 0)
         {
             var user = Context.Guild.Users.FirstOrDefault(gu => gu.Username.StartsWith(username) || !string.IsNullOrWhiteSpace(gu.Nickname) && gu.Nickname.StartsWith(username));
@@ -313,6 +324,8 @@ namespace BuzzBot.Discord.Modules
         }
         [Command("alias")]
         [RequiresBotAdmin]
+        [Summary("Adds an alias/alt to the specified user")]
+        [Remarks("alias Cantuna Zynum Warlock 1 25")]
         public async Task AddAlias(string userName, string aliasName, string className, int ep = 0, int gp = 0)
         {
             var user = Context.Guild.Users.FirstOrDefault(gu => gu.Username.StartsWith(userName) || !string.IsNullOrWhiteSpace(gu.Nickname) && gu.Nickname.StartsWith(userName));
