@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace BuzzBot.Epgp
 {
@@ -10,5 +11,6 @@ namespace BuzzBot.Epgp
         void DeleteTemplate(string templateId);
         void UpdateTemplate(string templateId, int key, int value);
         EpgpRaidTemplate GetTemplate([NotNull] string templateId);
+        event EventHandler ConfigurationChanged;
     }
 }

@@ -1,4 +1,5 @@
-﻿using BuzzBotData.Repositories;
+﻿using System;
+using BuzzBotData.Repositories;
 
 namespace BuzzBot.Epgp
 {
@@ -13,9 +14,9 @@ namespace BuzzBot.Epgp
             _epgpRepository = epgpRepository;
         }
 
-        public EpgpRaidMonitor GetNew()
+        public EpgpRaidMonitor GetNew(Action onRaidEndedAction)
         {
-            return new EpgpRaidMonitor(_epgpService, _epgpRepository);
+            return new EpgpRaidMonitor(_epgpService, _epgpRepository, onRaidEndedAction);
         }
     }
 }

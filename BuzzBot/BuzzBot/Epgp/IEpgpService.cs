@@ -8,5 +8,6 @@ namespace BuzzBot.Epgp
         void Gp(string aliasName, int value, string memo, TransactionType type = TransactionType.GpManual);
         void Decay(int decayPercent);
         void Decay(int decayPercent, string epgpFlag);
+        bool Set(string aliasName, int ep, int gp, string memo = "Manual Value Correction");
     }
 }

@@ -1,7 +1,9 @@
-﻿namespace BuzzBot.Epgp
+﻿using System;
+
+namespace BuzzBot.Epgp
 {
     public interface IRaidMonitorFactory
     {
-        EpgpRaidMonitor GetNew();
+        EpgpRaidMonitor GetNew(Action onRaidEndedAction);
     }
 }

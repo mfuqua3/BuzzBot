@@ -16,14 +16,15 @@ namespace BuzzBot.Epgp
     {
         private readonly IEpgpService _epgpService;
         private readonly EpgpRepository _epgpRepository;
+        private Action _onRaidEndedAction;
         private EpgpRaid _raid;
         private CancellationTokenSource _cts;
 
-        public EpgpRaidMonitor(IEpgpService epgpService, EpgpRepository epgpRepository)
+        public EpgpRaidMonitor(IEpgpService epgpService, EpgpRepository epgpRepository, Action onRaidEndedAction)
         {
             _epgpService = epgpService;
             _epgpRepository = epgpRepository;
-
+            _onRaidEndedAction = onRaidEndedAction;
         }
 
         public void UpdateRaid(RaidData data)
@@ -75,20 +76,20 @@ namespace BuzzBot.Epgp
             _raid = data.RaidObject;
 
             Task.Factory.StartNew(() => RunRaidMonitor(
-                    data.Message.Channel,
-                    _cts.Token),
+                    data.Message.Channel),
                 TaskCreationOptions.LongRunning);
         }
 
-        private async Task RunRaidMonitor(IMessageChannel messageChannel, CancellationToken token)
+        private async Task RunRaidMonitor(IMessageChannel messageChannel)
         {
             if (_raid == null) return;
             if (_raid.StartTime.ToUniversalTime() > DateTime.UtcNow && !_raid.Started)
             {
                 try
                 {
-                    var startDelay = TimeSpan.FromSeconds(10);//_raid.StartTime - GetTimestamp();
-                    await Task.Delay(startDelay, token);
+                    var startDelay = _raid.StartTime - GetTimestamp();
+                    if (startDelay > TimeSpan.Zero)
+                        await Task.Delay(startDelay, _cts.Token);
                 }
                 catch (TaskCanceledException)
                 {
@@ -101,11 +102,11 @@ namespace BuzzBot.Epgp
             var award = AwardEp(_raid.StartBonus, "RAID START BONUS", GetAllUsers(_raid));
             await messageChannel.SendMessageAsync("", false, award);
             var endTime = DateTime.UtcNow + _raid.Duration;
-            while (!token.IsCancellationRequested && endTime > DateTime.UtcNow)
+            while (!_cts.Token.IsCancellationRequested && endTime > DateTime.UtcNow)
             {
                 try
                 {
-                    await Task.Delay(_raid.TimeBonusDuration, token);
+                    await Task.Delay(_raid.TimeBonusDuration, _cts.Token);
                     if (_raid == null) return;
                     award = AwardEp(_raid.TimeBonus, "RAID TIME BONUS", GetAllUsers(_raid));
                     await messageChannel.SendMessageAsync("", false, award);
@@ -124,7 +125,7 @@ namespace BuzzBot.Epgp
 
         private Embed AwardEp(int value, string memo, List<RaidParticipant> participants)
         {
-            var aliases = GetAliases(participants).Select(a => a.Name).Distinct();
+            var aliases = GetAliases(participants).Select(a => a.Name).Distinct().ToList();
             foreach (var alias in aliases)
             {
                 _epgpService.Ep(alias, value, memo, TransactionType.EpAutomated);
@@ -158,7 +159,8 @@ namespace BuzzBot.Epgp
 
                 foreach (var participant in forColumn)
                 {
-                    columnSb.AppendLine($"<@{participant.Id}>");
+                    var participantString = participant.IsPrimaryAlias ? $"<@{participant.Id}>" : participant.Alias;
+                    columnSb.AppendLine($"{participantString}");
                 }
 
                 embedBuilder.AddField(EmbedConstants.EmptySpace, columnSb.ToString(), true);
@@ -198,7 +200,7 @@ namespace BuzzBot.Epgp
         }
 
         private IEnumerable<EpgpAlias> GetAliases(IEnumerable<RaidParticipant> participants) =>
-            participants.Select(p => _epgpRepository.GetPrimaryAlias(p.Id));
+            participants.Select(p => _epgpRepository.GetAlias(p.Alias));
 
         private Embed GetRaidAlertEmbed(string alertText)
         {
@@ -207,14 +209,11 @@ namespace BuzzBot.Epgp
                 .WithTimestamp(GetTimestamp());
             return embedBuilder.Build();
         }
-        private class RaidMonitorData
-        {
-            public EpgpRaid Raid { get; set; }
-            public CancellationTokenSource MonitorCts { get; set; }
-        }
 
         public void Dispose()
         {
+            _onRaidEndedAction();
+            _onRaidEndedAction = null;
             _cts?.Dispose();
             _raid = null;
         }

@@ -21,6 +21,7 @@ namespace BuzzBot.Discord.Modules
         private readonly AdministrationService _administrationService;
         private readonly GuildBankRepository _bankRepository;
         private readonly PageService _pageService;
+        private readonly DocumentationService _documentationService;
         public const string GroupName = "bank";
         public BankModule(
             ClassicGuildBankClient client, 
@@ -28,7 +29,7 @@ namespace BuzzBot.Discord.Modules
             ItemRequestService itemRequestService, 
             AdministrationService administrationService, 
             GuildBankRepository bankRepository,
-            PageService pageService)
+            PageService pageService, DocumentationService documentationService)
         {
             _client = client;
             _commandService = commandService;
@@ -36,6 +37,7 @@ namespace BuzzBot.Discord.Modules
             _administrationService = administrationService;
             _bankRepository = bankRepository;
             _pageService = pageService;
+            _documentationService = documentationService;
         }
         [Command("all")]
         public async Task All()
@@ -86,21 +88,7 @@ namespace BuzzBot.Discord.Modules
 
         [Command("help")]
         [Alias("?")]
-        public async Task Help()
-        {
-            var commands = _commandService.Commands.Where(cmd => cmd.Module.Name.Equals(GroupName)).Where(cmd => !string.IsNullOrEmpty(cmd.Summary));
-            var embedBuilder = new EmbedBuilder();
-            foreach (var command in commands)
-            {
-                if (command.Preconditions.Any(pc => pc.GetType() == typeof(RequiresBotAdminAttribute)))
-                {
-                    if (!_administrationService.IsUserAdmin(Context.User)) continue;
-                }
-                var embedFieldText = command.Summary;
-                embedBuilder.AddField(command.Name, embedFieldText);
-            }
-            await ReplyAsync("Here's a list of commands and their descriptions: ", false, embedBuilder.Build());
-        }
+        public async Task Help() => await _documentationService.SendDocumentation(await Context.User.GetOrCreateDMChannelAsync(), GroupName, Context.User.Id);
 
         [Command("search")]
         [Summary("Searches the guild bank for the specified item")]

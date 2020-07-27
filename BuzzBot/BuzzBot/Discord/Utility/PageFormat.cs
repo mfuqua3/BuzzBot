@@ -7,5 +7,6 @@ namespace BuzzBot.Discord.Utility
         public string HeaderLine { get; set; }
         public string HorizontalRule { get; set; }
         public List<string> ContentLines { get; set; }
+        public int LinesPerPage { get; set; } 
     }
 }

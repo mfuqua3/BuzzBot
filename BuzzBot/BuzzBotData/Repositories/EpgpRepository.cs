@@ -49,7 +49,10 @@ namespace BuzzBotData.Repositories
 
         public EpgpAlias GetAlias(string name)
         {
-            return _dbContext.Aliases.FirstOrDefault(a => a.Name.ToUpper().Contains(name.ToUpper()));
+            var aliases = _dbContext.Aliases.Where(a => a.Name.ToUpper().Contains(name.ToUpper())).ToList();
+            return aliases.Any(a => a.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)) ? 
+                aliases.FirstOrDefault(a => a.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)) : 
+                aliases.FirstOrDefault();
         }
 
         public EpgpAlias GetAlias(Guid id)

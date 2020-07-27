@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using BuzzBot.Epgp;
 using BuzzBotData.Data;
 
@@ -6,33 +8,26 @@ namespace BuzzBot.Discord.Extensions
 {
     public static class WowClassExtensions
     {
+        private static readonly Dictionary<Class, WowClass> ConversionDictionary = new Dictionary<Class, WowClass>
+        {
+            {Class.Warlock, WowClass.Warlock },
+            {Class.Mage, WowClass.Mage },
+            {Class.Priest, WowClass.Priest },
+            {Class.Druid, WowClass.Druid },
+            {Class.Rogue, WowClass.Rogue },
+            {Class.Hunter, WowClass.Hunter },
+            {Class.Shaman, WowClass.Shaman },
+            {Class.Paladin, WowClass.Paladin },
+            {Class.Warrior, WowClass.Warrior },
+            {Class.Undefined, WowClass.Unknown }
+        };
+        public static WowClass ToWowClass(this Class domainClass)
+        {
+            return ConversionDictionary[domainClass];
+        }
         public static Class ToDomainClass(this WowClass wowClass)
         {
-            switch (wowClass)
-            {
-                case WowClass.Unknown:
-                    return Class.Undefined;
-                case WowClass.Warrior:
-                    return Class.Warrior;
-                case WowClass.Paladin:
-                    return Class.Paladin;
-                case WowClass.Hunter:
-                    return Class.Hunter;
-                case WowClass.Shaman:
-                    return Class.Shaman;
-                case WowClass.Rogue:
-                    return Class.Rogue;
-                case WowClass.Druid:
-                    return Class.Druid;
-                case WowClass.Warlock:
-                    return Class.Warlock;
-                case WowClass.Mage:
-                    return Class.Mage;
-                case WowClass.Priest:
-                    return Class.Priest;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(wowClass), wowClass, null);
-            }
+            return ConversionDictionary.ToDictionary(kvp => kvp.Value, kvp => kvp.Key)[wowClass];
         }
     }
 }

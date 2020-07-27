@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Utility;
 using BuzzBot.Epgp;
+using BuzzBotData.Repositories;
 using Discord;
 using Discord.WebSocket;
 
@@ -13,6 +14,7 @@ namespace BuzzBot.Discord.Services
 {
     public class RaidService : IRaidService
     {
+        private readonly EpgpRepository _epgpRepository;
         private readonly IRaidMonitorFactory _raidMonitorFactory;
         public static string CasterEmote = $"<:{CasterEmoteName}:{CasterEmoteId}>";
         public static string MeleeEmote = $"<:{MeleeEmoteName}:{MeleeEmoteId}>";
@@ -59,8 +61,9 @@ namespace BuzzBot.Discord.Services
         private readonly Dictionary<ulong, RaidData> _activeRaidMessages = new Dictionary<ulong, RaidData>();
         private readonly Dictionary<ulong, EpgpRaidMonitor> _raidMonitors = new Dictionary<ulong, EpgpRaidMonitor>();
 
-        public RaidService(DiscordSocketClient client, IRaidMonitorFactory raidMonitorFactory)
+        public RaidService(DiscordSocketClient client, IRaidMonitorFactory raidMonitorFactory, EpgpRepository epgpRepository)
         {
+            _epgpRepository = epgpRepository;
             _raidMonitorFactory = raidMonitorFactory;
             client.ReactionAdded += ReactionAdded;
             client.ReactionRemoved += ReactionRemoved;
@@ -101,22 +104,24 @@ namespace BuzzBot.Discord.Services
                     break;
             }
 
-            if (!(reaction.User.Value is IGuildUser guildUser)) return;
-            var wowClass = guildUser.GetClass();
-            var participant = new RaidParticipant(reaction.UserId, wowClass);
+            if (!(reaction.User.Value is IGuildUser)) return;
+            var aliases = _epgpRepository.GetAliasesForUser(reaction.UserId);
+            if (!aliases.Any()) return;
+            var alias = aliases.FirstOrDefault(a => a.IsActive) ?? aliases.FirstOrDefault(a => a.IsPrimary) ?? aliases.First();
+            var participant = new RaidParticipant(reaction.UserId, alias.Class.ToWowClass()) { Alias = alias.Name, IsPrimaryAlias = alias.IsPrimary };
             if (action == ReactionAction.Add)
             {
 
-                raid.RaidObject.Melee.Remove(participant);
-                raid.RaidObject.Casters.Remove(participant);
-                raid.RaidObject.Ranged.Remove(participant);
-                raid.RaidObject.Healers.Remove(participant);
-                raid.RaidObject.Tanks.Remove(participant);
+                RemoveUser(raid.RaidObject.Melee, reaction.UserId);
+                RemoveUser(raid.RaidObject.Casters, reaction.UserId);
+                RemoveUser(raid.RaidObject.Ranged, reaction.UserId);
+                RemoveUser(raid.RaidObject.Healers, reaction.UserId);
+                RemoveUser(raid.RaidObject.Tanks, reaction.UserId);
                 roleCollection.Add(participant);
             }
             else if (action == ReactionAction.Remove)
             {
-                roleCollection.Remove(participant);
+                RemoveUser(roleCollection, reaction.UserId);
             }
             var embed = CreateEmbed(raid.RaidObject);
             await raid.Message.ModifyAsync(opt => opt.Embed = embed);
@@ -142,11 +147,70 @@ namespace BuzzBot.Discord.Services
             return raidData.Id;
         }
 
+        public async Task KickUser(ulong userId, ulong raidId = 0)
+        {
+            if (raidId == 0) raidId = _activeRaidMessages.Keys.LastOrDefault();
+            if(!_activeRaidMessages.ContainsKey(raidId))
+                throw new InvalidOperationException("No active raid message was found for kick operation.");
+            var raid = _activeRaidMessages[raidId];
+            RemoveUser(raid.RaidObject.Melee, userId);
+            RemoveUser(raid.RaidObject.Casters, userId);
+            RemoveUser(raid.RaidObject.Ranged, userId);
+            RemoveUser(raid.RaidObject.Healers, userId);
+            RemoveUser(raid.RaidObject.Tanks, userId);
+            var embed = CreateEmbed(raid.RaidObject);
+            await raid.Message.ModifyAsync(opt => opt.Embed = embed);
+        }
+
+        private void RemoveUser(ICollection<RaidParticipant> participantCollection, ulong user)
+        {
+            var existingParticipant = participantCollection.FirstOrDefault(rp => rp.Id == user);
+            if (existingParticipant == null) return;
+            participantCollection.Remove(existingParticipant);
+        }
+
+        public async Task KickUser(string alias, ulong raidId = 0)
+            => await KickUser(_epgpRepository.GetAlias(alias).UserId, raidId);
+
+        public void Start(ulong raidId = 0)
+        {
+            if (raidId == 0) raidId = _activeRaidMessages.Keys.LastOrDefault();
+            if (!_activeRaidMessages.ContainsKey(raidId) || !_raidMonitors.ContainsKey(raidId))
+                throw new InvalidOperationException("No active raid message was found to start.");
+            var raidData = _activeRaidMessages[raidId];
+            if (raidData.Started)
+                throw new InvalidOperationException("The raid has already started");
+            var raidMonitor = _raidMonitors[raidId];
+            raidData.RaidObject.StartTime = DateTime.Now.ToEasternTime();
+            raidMonitor.UpdateRaid(raidData);
+        }
+
+        public void Extend(TimeSpan extend, ulong raidId = 0)
+        {
+            if (raidId == 0) raidId = _activeRaidMessages.Keys.LastOrDefault();
+            if (!_activeRaidMessages.ContainsKey(raidId) || !_raidMonitors.ContainsKey(raidId))
+                throw new InvalidOperationException("No active raid message was found to extend.");
+            var raidData = _activeRaidMessages[raidId];
+            raidData.RaidObject.Duration += extend;
+            _raidMonitors[raidId].UpdateRaid(raidData);
+        }
+
+        public void End(ulong raidId = 0)
+        {
+            if (raidId == 0) raidId = _activeRaidMessages.Keys.LastOrDefault();
+            if (!_activeRaidMessages.ContainsKey(raidId) || !_raidMonitors.ContainsKey(raidId))
+                throw new InvalidOperationException("No active raid message was found to extend.");
+            var raidData = _activeRaidMessages[raidId];
+            var raidMonitor = _raidMonitors[raidId];
+            raidMonitor.RemoveRaid(raidData);
+        }
+
         private void AddRaid(RaidData raidData)
         {
             _activeRaidMessages.Add(raidData.Id, raidData);
-            var raidMonitor = _raidMonitorFactory.GetNew();
+            var raidMonitor = _raidMonitorFactory.GetNew(() => RemoveRaid(raidData));
             raidMonitor.AddRaid(raidData);
+            _raidMonitors.Add(raidData.Id, raidMonitor);
             while (_activeRaidMessages.Count > MaxConcurrentRaids)
             {
                 RemoveRaid(_activeRaidMessages.First().Value);
@@ -194,15 +258,16 @@ namespace BuzzBot.Discord.Services
             var returnSb = new StringBuilder();
             foreach (var participant in userIdList)
             {
-                returnSb.AppendLine($"{_emoteDictionary[participant.WowClass]} <@{participant.Id}>");
+                returnSb.AppendLine($"{_emoteDictionary[participant.WowClass]} {ParticipantString(participant)}");
             }
 
             return returnSb.ToString();
         }
 
-        public event EventHandler<RaidData> RaidAdded;
-        public event EventHandler<RaidData> RaidRemoved;
-        public event EventHandler<RaidData> RaidUpdated;
+        private string ParticipantString(RaidParticipant participant)
+        {
+            return participant.IsPrimaryAlias ? $"<@{participant.Id}>" : participant.Alias;
+        }
     }
     public class RaidData
     {
