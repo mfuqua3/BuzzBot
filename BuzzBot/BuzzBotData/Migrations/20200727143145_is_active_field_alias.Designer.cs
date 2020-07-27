@@ -3,14 +3,16 @@ using System;
 using BuzzBotData.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace BuzzBotData.Migrations
 {
     [DbContext(typeof(BuzzBotDbContext))]
-    partial class BuzzBotDbContexttModelSnapshot : ModelSnapshot
+    [Migration("20200727143145_is_active_field_alias")]
+    partial class is_active_field_alias
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

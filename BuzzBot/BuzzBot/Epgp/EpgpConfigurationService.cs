@@ -42,7 +42,10 @@ namespace BuzzBot.Epgp
         }
 
         public void UpdateConfig(int key, int value)
-            => UpdateConfig(_configuration, key, value);
+        {
+            UpdateConfig(_configuration, key, value);
+            ConfigurationChanged?.Invoke(this, EventArgs.Empty);
+        }
 
         public void AddTemplate(EpgpRaidTemplate template)
         {
@@ -99,12 +102,14 @@ namespace BuzzBot.Epgp
 
         private void Save()
         {
-            File.WriteAllText(_filePath, JsonConvert.SerializeObject(_configuration));
+            File.WriteAllText(_filePath, JsonConvert.SerializeObject(_configuration, Formatting.Indented));
         }
 
         private EpgpConfiguration Load()
         {
             return JsonConvert.DeserializeObject<EpgpConfiguration>(File.ReadAllText(_filePath));
         }
+
+        public event EventHandler ConfigurationChanged;
     }
 }

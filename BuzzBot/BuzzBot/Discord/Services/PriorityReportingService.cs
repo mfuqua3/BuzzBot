@@ -1,11 +1,12 @@
-﻿using System;
+﻿using BuzzBotData.Data;
+using BuzzBotData.Repositories;
+using Discord;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using BuzzBotData.Data;
-using BuzzBotData.Repositories;
-using Discord;
+using BuzzBot.Discord.Utility;
 
 namespace BuzzBot.Discord.Services
 {
@@ -41,16 +42,27 @@ namespace BuzzBot.Discord.Services
 
         private async Task Report(IMessageChannel messageChannel, IEnumerable<EpgpAlias> aliases)
         {
-            var header = $"{Header}\n{HorizontalRule}";
-            var formattedAliases = new List<string>();
-            var alternate = false;
+            var formatBuilder = new PageFormatBuilder()
+                .AlternateRowColors()
+                .AddColumn("Member")
+                .AddColumn("EP")
+                .AddColumn("GP")
+                .AddColumn("PR");
+            //var header = $"{Header}\n{HorizontalRule}";
+            //var formattedAliases = new List<string>();
+            //var alternate = false;
             foreach (var alias in aliases)
             {
-                formattedAliases.Add(FormatAlias(alias, alternate));
-                alternate = !alternate;
+                formatBuilder.AddRow(new[]
+                {
+                    alias.Name, 
+                    alias.EffortPoints.ToString(), 
+                    alias.GearPoints.ToString(),
+                    ((double) alias.EffortPoints / alias.GearPoints).ToString("F2")
+                });
             }
 
-            await _pageService.SendPages(messageChannel, header, formattedAliases.ToArray());
+            await _pageService.SendPages(messageChannel, formatBuilder.Build());
         }
 
         private string FormatAlias(EpgpAlias alias, bool alternate)

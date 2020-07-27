@@ -7,6 +7,7 @@ namespace BuzzBotData.Data
     {
         public Guid Id { get; set; }
         public bool IsPrimary { get; set; }
+        public bool IsActive { get; set; }
         public string Name { get; set; }
         public Class Class { get; set; }
         public int EffortPoints { get; set; }

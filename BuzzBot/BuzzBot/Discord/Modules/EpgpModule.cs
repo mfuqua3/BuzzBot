@@ -1,18 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Services;
+using BuzzBot.Discord.Utility;
 using BuzzBot.Epgp;
 using BuzzBotData.Data;
 using BuzzBotData.Repositories;
+using CsvHelper;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using Microsoft.VisualBasic.FileIO;
 
 namespace BuzzBot.Discord.Modules
 {
@@ -27,6 +34,9 @@ namespace BuzzBot.Discord.Modules
         private readonly AuditService _auditService;
         private readonly ItemRepository _itemRepository;
         private readonly EpgpCalculator _epgpCalculator;
+        private IEpgpConfigurationService _epgpConfigurationService;
+        private PageService _pageService;
+        private DocumentationService _documentationService;
         public const string GroupName = "epgp";
 
         public EpgpModule(
@@ -36,7 +46,9 @@ namespace BuzzBot.Discord.Modules
             IEpgpService epgpService,
             AuditService auditService,
             ItemRepository itemRepository,
-            EpgpCalculator epgpCalculator)
+            EpgpCalculator epgpCalculator,
+            IEpgpConfigurationService epgpConfigurationService,
+            PageService pageService, DocumentationService documentationService)
         {
             _repository = repository;
             _priorityReportingService = priorityReportingService;
@@ -45,6 +57,9 @@ namespace BuzzBot.Discord.Modules
             _auditService = auditService;
             _itemRepository = itemRepository;
             _epgpCalculator = epgpCalculator;
+            _epgpConfigurationService = epgpConfigurationService;
+            _pageService = pageService;
+            _documentationService = documentationService;
         }
 
         [Command("decay")]
@@ -142,6 +157,47 @@ namespace BuzzBot.Discord.Modules
             _epgpService.Gp(user.GetAliasName(), (int)Math.Round(value), item.Name, TransactionType.GpFromGear);
         }
 
+        [Command("correct")]
+        [RequiresBotAdmin]
+        public async Task Correct(ulong csvMessageId)
+        {
+            var message = await Context.Channel.GetMessageAsync(csvMessageId);
+            if (message == null)
+            {
+                await ReplyAsync("No message was found with that ID in this channel");
+                return;
+            }
+
+            if (!message.Attachments.Any())
+            {
+                await ReplyAsync("No attachments detected in file");
+                return;
+            }
+
+            using var client = new HttpClient();
+            var file = await client.GetStringAsync(message.Attachments.First().Url);
+            using var streamReader = new StringReader(file);
+            try
+            {
+                var csv = new CsvReader(streamReader, CultureInfo.CurrentCulture);
+                var records = csv.GetRecords<EpgpCsvResult>();
+                foreach (var record in records)
+                {
+                    if (!_epgpService.Set(record.Name, record.EP, record.GP))
+                    {
+                        await ReplyAsync($"{record.Name} not set. (No record found)");
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                await ReplyAsync(
+                    "An error occurred while attempting to parse the file from the specified message");
+            }
+        }
+
+        
+
         [Command("audit")]
         public async Task Audit(IGuildUser user) =>
             await Audit(string.IsNullOrEmpty(user.Nickname) ? user.Username : user.Nickname);
@@ -153,6 +209,9 @@ namespace BuzzBot.Discord.Modules
         }
 
 
+        [Command("help")]
+        [Alias("?")]
+        public async Task Help() => await _documentationService.SendDocumentation(await Context.User.GetOrCreateDMChannelAsync(), GroupName, Context.User.Id);
         [Command("pr")]
         public async Task PrintPriority()
         {
@@ -182,6 +241,42 @@ namespace BuzzBot.Discord.Modules
         {
             var prunedUsers = users.Select(usr => usr.GetAliasName()).Distinct();
             await PrintPriority(prunedUsers.ToArray());
+        }
+
+        [Command("config")]
+        public async Task Configuration()
+        {
+            var config = _epgpConfigurationService.GetConfiguration();
+            var pageBuilder = new PageFormatBuilder()
+                .AddColumn("Configuration Property Key")
+                .AddColumn("Property Name")
+                .AddColumn("Value")
+                .AlternateRowColors();
+
+            var properties = config.GetType().GetProperties()
+                .Where(pi => Attribute.IsDefined(pi, typeof(ConfigurationKeyAttribute)));
+
+            foreach (var propertyInfo in properties)
+            {
+                var key = propertyInfo.GetCustomAttribute<ConfigurationKeyAttribute>().Key;
+                var name = propertyInfo.Name;
+                var value = propertyInfo.GetValue(config);
+                string valueString = string.Empty;
+                if (((int)value).ToString() != value.ToString())
+                {
+                    valueString = $" ({value.ToString()})";
+                }
+                pageBuilder.AddRow(new[] { key.ToString(), name, $"{(int)value}{valueString}"});
+            }
+
+            await _pageService.SendPages(Context.Channel, pageBuilder.Build());
+        }
+        [Command("config")]
+        [RequiresBotAdmin]
+        public async Task Configure(int key, int value)
+        {
+            _epgpConfigurationService.UpdateConfig(key, value);
+            await ReplyAsync("Configuration change accepted");
         }
 
         [Command("add")]

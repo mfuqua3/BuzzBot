@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 using BuzzBot.ClassicGuildBank.Domain;
 using BuzzBotData.Data;
+using Discord.Net;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 
@@ -56,6 +58,10 @@ namespace BuzzBot.ClassicGuildBank.Buzz
         public async Task<List<Guild>> GetGuilds()
         {
             var httpResult = await _client.GetAsync("guild/getguilds");
+            if (httpResult.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                throw new HttpRequestException("Unauthorized access, consider configuring an updated bank API token");
+            }
             var guilds = JsonConvert.DeserializeObject<List<Guild>>(await httpResult.Content.ReadAsStringAsync());
             return guilds;
         }
@@ -64,6 +70,11 @@ namespace BuzzBot.ClassicGuildBank.Buzz
         {
             var guildToQuery = guildId ?? _configuration["buzzBankId"];
             var httpResult = await _client.GetAsync($"getcharacters/{guildToQuery}");
+
+            if (httpResult.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                throw new HttpRequestException("Unauthorized access, consider configuring an updated bank API token");
+            }
             var jsonResult = await httpResult.Content.ReadAsStringAsync();
             return JsonConvert.DeserializeObject<List<Character>>(jsonResult);
         }

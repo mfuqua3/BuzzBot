@@ -16,51 +16,34 @@ namespace BuzzBot.Discord.Modules
     [Group(GroupName)]
     public class RaidModule : ModuleBase<SocketCommandContext>
     {
-        private const string GroupName = "raid";
+        private const string GroupName = @"raid";
         private readonly IRaidService _raidService;
         private readonly IRaidFactory _raidFactory;
         private readonly IEpgpConfigurationService _epgpConfigurationService;
-        private readonly CommandService _commandService;
-        private readonly AdministrationService _administrationService;
+        private readonly DocumentationService _documentationService;
         private readonly PageService _pageService;
 
         public RaidModule(
             IRaidService raidService,
             IRaidFactory raidFactory,
             IEpgpConfigurationService epgpConfigurationService,
-            CommandService commandService,
-            AdministrationService administrationService,
+            DocumentationService documentationService,
             PageService pageService)
         {
             _raidService = raidService;
             _raidFactory = raidFactory;
             _epgpConfigurationService = epgpConfigurationService;
-            _commandService = commandService;
-            _administrationService = administrationService;
+            _documentationService = documentationService;
             _pageService = pageService;
         }
-
         [Command("help")]
         [Alias("?")]
-        public async Task Help()
-        {
-            var commands = _commandService.Commands.Where(cmd => cmd.Module.Name.Equals(GroupName)).Where(cmd => !string.IsNullOrEmpty(cmd.Summary));
-            var embedBuilder = new EmbedBuilder();
-            foreach (var command in commands)
-            {
-                if (command.Preconditions.Any(pc => pc.GetType() == typeof(RequiresBotAdminAttribute)))
-                {
-                    if (!_administrationService.IsUserAdmin(Context.User)) continue;
-                }
-                var embedFieldText = command.Summary;
-                embedBuilder.AddField(command.Name, embedFieldText);
-            }
-            await ReplyAsync("Here's a list of commands and their descriptions: ", false, embedBuilder.Build());
-        }
+        public async Task Help() => await _documentationService.SendDocumentation(await Context.User.GetOrCreateDMChannelAsync(), GroupName, Context.User.Id);
 
         [Command("begin")]
         [Summary("Begins a new raid event")]
-        [Alias("start")]
+        [Remarks("begin moltencore")]
+        [RequiresBotAdmin]
         public async Task Begin(string templateId)
         {
             EpgpRaid raid;
@@ -84,6 +67,7 @@ namespace BuzzBot.Discord.Modules
         }
         [Command("template")]
         [Summary("Prints a summary of all configured raid templates.")]
+        [RequiresBotAdmin]
         public async Task Template()
         {
             var config = _epgpConfigurationService.GetConfiguration();
@@ -112,8 +96,77 @@ namespace BuzzBot.Discord.Modules
 
             await _pageService.SendPages(Context.Channel, pageBuilder.Build());
         }
+        [Command("startnow")]
+        [Summary("Immediately starts the specified (or latest active) raid")]
+        [Remarks("startnow 737338848065093773")]
+        [RequiresBotAdmin]
+        public async Task StartNow(ulong raidId = 0)
+        {
+            try
+            {
+                _raidService.Start(raidId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await ReplyAsync(ex.Message);
+            }
+        }
+
+        [Command("extend")]
+        [Summary("Extends the specified (or latest active) raid by provided minutes.")]
+        [Remarks("extend 30 737338848065093773")]
+        [RequiresBotAdmin]
+        public async Task Extend(int extensionMinutes, ulong raidId = 0)
+        {
+            try
+            {
+                _raidService.Extend(TimeSpan.FromMinutes(extensionMinutes), raidId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await ReplyAsync(ex.Message);
+            }
+        }
+
+        [Command("kick")]
+        [Alias(("remove"))]
+        [Summary("Kicks the user from the specified (or latest active) raid ID")]
+        [Remarks("kick Pusslayering 737338848065093773")]
+        [RequiresBotAdmin]
+        public async Task Kick(IGuildUser user, ulong raidId = 0)
+        {
+            await _raidService.KickUser(user.Id, raidId);
+        }
+
+        [Command("kick")]
+        [Alias(("remove"))]
+        [Summary("Kicks the user from the specified (or latest active) raid ID")]
+        [RequiresBotAdmin]
+        public async Task Kick(string user, ulong raidId = 0)
+        {
+            await _raidService.KickUser(user, raidId);
+        }
+
+        [Command("end")]
+        [Summary("Ends the specified (or latest active) raid ID")]
+        [Remarks("end 737338848065093773")]
+        [RequiresBotAdmin]
+        public async Task End(ulong raidId = 0)
+        {
+            try
+            {
+                _raidService.End(raidId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await ReplyAsync(ex.Message);
+            }
+        }
+
         [Command("template")]
-        [Summary("Prints a summary of the configured fields for the provided raid template")]
+        [Summary("Prints configuration summary for template")]
+        [RequiresBotAdmin]
+        [Remarks("template moltencore")]
         public async Task Template(string templateId)
         {
             EpgpRaidTemplate template;
@@ -147,8 +200,9 @@ namespace BuzzBot.Discord.Modules
             await _pageService.SendPages(Context.Channel, pageBuilder.Build());
         }
         [Command("update")]
-        [Summary("Updates the specified template using the key-value pair provided.\n" +
-                 "e.g. update moltencore 2 60")]
+        [Summary("Updates the specified template using the key-value pair provided")]
+        [Remarks("update moltencore 2 60")]
+        [RequiresBotAdmin]
         public async Task Update(string templateId, int key, int value)
         {
             try
@@ -170,9 +224,9 @@ namespace BuzzBot.Discord.Modules
         }
 
         [Command("add")]
-        [Summary("Adds a new raid template. \n" +
-                 "Format must be add {id} {capacity} {startBonus} {endBonus} {timeBonus} {timeBonusIntervalMinutes} {raidDurationMinutes} {signupDurationMinutes} \n" +
-                 "e.g. add moltencore 40 10 15 2 5 120 30")]
+        [Summary("Adds a new raid template.")]
+        [Remarks("add {id} {capacity} {startBonus} {endBonus} {timeBonus} {timeBonusIntervalMinutes} {raidDurationMinutes} {signupDurationMinutes}")]
+        [RequiresBotAdmin]
         public async Task Add(string id, int capacity, int startBonus, int endBonus, int timeBonus,
             int timeBonusDurationMinutes, int raidDurationMinutes, int signUpDurationMinutes)
         {
@@ -209,6 +263,8 @@ namespace BuzzBot.Discord.Modules
         }
         [Command("delete")]
         [Summary("Deletes the specified raid template.")]
+        [Remarks("delete moltencore")]
+        [RequiresBotAdmin]
         public async Task Delete(string templateId)
         {
             try

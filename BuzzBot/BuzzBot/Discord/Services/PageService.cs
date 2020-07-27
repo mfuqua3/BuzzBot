@@ -30,17 +30,14 @@ namespace BuzzBot.Discord.Services
             var isForward = reaction.Emote.Name.Equals(ArrowForward);
             if (!(await reaction.Channel.GetMessageAsync(reaction.MessageId) is IUserMessage message)) return;
             var pageToSend = isForward ? pagedContent.GetNextPage() : pagedContent.GetPreviousPage();
-            await  message.ModifyAsync(opt => opt.Content = pageToSend.Content);
+            await message.ModifyAsync(opt => opt.Content = pageToSend.Content);
         }
 
         public async Task SendPages(IMessageChannel channel, PageFormat pageFormat)
-            => await SendPages(channel, $"{pageFormat.HeaderLine}\n{pageFormat.HorizontalRule}",
-                pageFormat.ContentLines.ToArray());
-        public async Task SendPages(IMessageChannel channel, string header, params string[] contentLines)
         {
-            var numberOfPages = (int)Math.Ceiling((double)contentLines.Length / 15);
+            var numberOfPages = (int)Math.Ceiling((double)pageFormat.ContentLines.Count / pageFormat.LinesPerPage);
             var pageNumber = 0;
-            var contentLineQueue = new Queue<string>(contentLines);
+            var contentLineQueue = new Queue<string>(pageFormat.ContentLines);
             var pagedContent = new PagedContent();
             while (contentLineQueue.Any())
             {
@@ -49,8 +46,8 @@ namespace BuzzBot.Discord.Services
                 var pageLineIterator = 0;
                 var contentSb = new StringBuilder();
                 contentSb.AppendLine("```diff");
-                contentSb.AppendLine(header);
-                while (pageLineIterator < 15)
+                contentSb.AppendLine($"{pageFormat.HeaderLine}{(!string.IsNullOrEmpty(pageFormat.HorizontalRule) ? Environment.NewLine + pageFormat.HorizontalRule : string.Empty)}");
+                while (pageLineIterator < pageFormat.LinesPerPage)
                 {
                     if (!contentLineQueue.Any()) break;
                     var line = contentLineQueue.Dequeue();
@@ -84,6 +81,11 @@ namespace BuzzBot.Discord.Services
             await message.AddReactionAsync(new Emoji(ArrowBackward));
             await message.AddReactionAsync(new Emoji(ArrowForward));
         }
+        // => await SendPages(channel, $"{pageFormat.HeaderLine}\n{pageFormat.HorizontalRule}",
+        //   pageFormat.ContentLines.ToArray());
+        public async Task SendPages(IMessageChannel channel, string header, params string[] contentLines)
+            => await SendPages(channel,
+                new PageFormat{ HeaderLine = header, ContentLines = contentLines.ToList(), HorizontalRule = null, LinesPerPage = 15 });
 
         private string JoinLines(string header, params string[] lines)
         {

@@ -1,4 +1,5 @@
 ﻿using BuzzBot.Discord.Services;
+using BuzzBot.Discord.Utility;
 using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,6 +21,7 @@ namespace BuzzBot.Discord.Extensions
                 .AddTransient<PriorityReportingService>()
                 .AddSingleton<PageService>()
                 .AddSingleton<QueryService>()
+                .AddTransient<DocumentationService>()
                 .AddTransient<AuditService>();
             return services;
         }

@@ -1,6 +1,6 @@
 ﻿namespace BuzzBot.Epgp
 {
-    public struct RaidParticipant
+    public class RaidParticipant
     {
         public RaidParticipant(ulong id, WowClass wowClass)
         {
@@ -10,6 +10,8 @@
 
         public ulong Id { get; }
         public WowClass WowClass { get; }
+        public bool IsPrimaryAlias { get; set; } = true;
+        public string Alias { get; set; }
     }
     public enum WowClass
     {

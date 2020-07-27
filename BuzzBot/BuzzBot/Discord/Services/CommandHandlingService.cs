@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using BuzzBot.Discord.Utility;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using Microsoft.Extensions.Configuration;
 
 namespace BuzzBot.Discord.Services
 {
@@ -12,15 +15,16 @@ namespace BuzzBot.Discord.Services
     {
         private readonly DiscordSocketClient _discord;
         private readonly CommandService _commands;
-        private readonly ItemRequestService _itemRequestService;
         private IServiceProvider _provider;
+        private readonly HashSet<ulong> _channels;
 
-        public CommandHandlingService(IServiceProvider provider, DiscordSocketClient discord, CommandService commands, ItemRequestService itemRequestService)
+        public CommandHandlingService(IServiceProvider provider, DiscordSocketClient discord, CommandService commands, IConfiguration configuration)
         {
             _discord = discord;
             _commands = commands;
-            _itemRequestService = itemRequestService;
             _provider = provider;
+            _channels = configuration.GetSection("authorizedChannels").AsEnumerable()
+                .Where(c => ulong.TryParse(c.Value, out _)).Select(c => ulong.Parse(c.Value)).ToHashSet();
 
             _discord.MessageReceived += MessageReceived;
         }
@@ -38,17 +42,14 @@ namespace BuzzBot.Discord.Services
             // Ignore system messages and messages from bots
             if (!(rawMessage is SocketUserMessage message)) return;
             if (message.Source != MessageSource.User) return;
-            var isDm = rawMessage.Channel is IDMChannel;
-            if (message.Channel.Id != 727626202977927188 && !isDm) return;//DevSandbox
-            if (isDm)
-                _itemRequestService.TryResolveResponse(rawMessage);
-            int argPos = 0;
+            if (!_channels.Contains(rawMessage.Channel.Id)) return;
+            var argPos = 0;
             //if (!message.HasMentionPrefix(_discord.CurrentUser, ref argPos)) return;
-            if (!message.HasStringPrefix("buzz.", ref argPos, StringComparison.CurrentCultureIgnoreCase) ||
+            if (!message.HasCharPrefix('!', ref argPos) ||
                 message.Author.IsBot) return;
 
             var context = new SocketCommandContext(_discord, message);
-            var result = await _commands.ExecuteAsync(context, argPos, _provider);
+            var result = await _commands.ExecuteAsync(context, argPos, _provider, MultiMatchHandling.Best);
 
             if (result.Error.HasValue
                 /*&& result.Error.Value != CommandError.UnknownCommand*/)
