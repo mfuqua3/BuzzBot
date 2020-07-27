@@ -75,7 +75,7 @@ namespace BuzzBot.Discord.Modules
             }
 
             var format = pageBuilder.Build();
-            await _pageService.SendPages(Context.Channel, $"{format.HeaderLine}\n{format.HorizontalRule}",
+            await _pageService.SendPages(await Context.User.GetOrCreateDMChannelAsync(), $"{format.HeaderLine}\n{format.HorizontalRule}",
                 format.ContentLines.ToArray());
         }
 
@@ -92,6 +92,7 @@ namespace BuzzBot.Discord.Modules
 
         [Command("search")]
         [Summary("Searches the guild bank for the specified item")]
+        [Remarks("search Elemental Fire")]
         [Alias("query", "find")]
         public async Task Search([Remainder] [Summary("Item to search")]
             string item)
@@ -117,7 +118,7 @@ namespace BuzzBot.Discord.Modules
             await ReplyAsync(resultSb.ToString());
         }
         [Command("request")]
-        [Summary("Requests the specified item from the guild bank.")]
+        [RequiresBotAdmin]
         public async Task Request([Remainder] [Summary("Item to search")]
             string item)
         {
