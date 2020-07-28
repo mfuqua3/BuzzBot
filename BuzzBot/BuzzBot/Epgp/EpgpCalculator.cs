@@ -62,6 +62,7 @@ namespace BuzzBot.Epgp
                 case 16: //Back
                 case 11: //Finger
                 case 23: //Offhand
+                case 28: //Idol
                     return 0.5;
                 case 1: //Helm
                 case 5: //Chest
