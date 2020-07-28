@@ -118,31 +118,13 @@ namespace BuzzBot.Epgp
             var aliases = _epgpRepository.GetAliases();
             foreach (var alias in aliases)
             {
-
                 var epDecay = (int)Math.Round(alias.EffortPoints * asPercent, MidpointRounding.AwayFromZero);
                 var gpDecay = (int)Math.Round(alias.GearPoints * asPercent, MidpointRounding.AwayFromZero);
-                var epTransaction = new EpgpTransaction
-                {
-                    Id = Guid.NewGuid(),
-                    AliasId = alias.Id,
-                    Memo = $"{decayPercent}% Decay",
-                    TransactionType = TransactionType.EpDecay,
-                    Value = -epDecay
-                };
-                var gpTransaction = new EpgpTransaction
-                {
-                    Id = Guid.NewGuid(),
-                    AliasId = alias.Id,
-                    Memo = $"{decayPercent}% Decay",
-                    TransactionType = TransactionType.GpDecay,
-                    Value = -gpDecay
-                };
                 if (string.IsNullOrWhiteSpace(epgpFlag) || epgpFlag.Equals(EpFlag))
-                    _epgpRepository.PostTransaction(epTransaction);
+                    Ep(alias.Name, epDecay, $"{decayPercent}% Decay", TransactionType.EpDecay);
                 if (string.IsNullOrWhiteSpace(epgpFlag) || epgpFlag.Equals(GpFlag))
-                    _epgpRepository.PostTransaction(gpTransaction);
+                    Gp(alias.Name, gpDecay, $"{decayPercent}% Decay", TransactionType.GpDecay);
             }
-            _epgpRepository.Save();
         }
     }
 }

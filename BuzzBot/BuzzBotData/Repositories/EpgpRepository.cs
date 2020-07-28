@@ -16,6 +16,39 @@ namespace BuzzBotData.Repositories
             _dbContext = dbContext;
         }
 
+        public void DeleteGuildUser(ulong id)
+        {
+            var aliases = GetAliasesForUser(id);
+            foreach (var alias in aliases)
+            {
+                var transactions = _dbContext.EpgpTransactions.Where(t => t.AliasId == alias.Id);
+                foreach (var transaction in transactions)
+                {
+                    _dbContext.EpgpTransactions.Remove(transaction);
+                }
+
+                _dbContext.Aliases.Remove(alias);
+            }
+
+            var user = _dbContext.GuildUsers.Find(id);
+            _dbContext.GuildUsers.Remove(user);
+            Save();
+        }
+
+        public void DeleteAlias(string aliasName)
+        {
+            var alias = _dbContext.Aliases.ToList()
+                .FirstOrDefault(a => a.Name.Equals(aliasName, StringComparison.InvariantCultureIgnoreCase));
+            if (alias == null) return;
+            var transactions = _dbContext.EpgpTransactions.Where(t => t.AliasId == alias.Id);
+            foreach (var transaction in transactions)
+            {
+                _dbContext.EpgpTransactions.Remove(transaction);
+            }
+
+            _dbContext.Aliases.Remove(alias);
+            Save();
+        }
         public void AddGuildUser(ulong id)
         {
             var user = new GuildUser() { Id = id };
