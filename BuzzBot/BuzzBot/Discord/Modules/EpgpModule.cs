@@ -247,6 +247,31 @@ namespace BuzzBot.Discord.Modules
             var prunedUsers = users.Select(usr => usr.GetAliasName()).Distinct();
             await PrintPriority(prunedUsers.ToArray());
         }
+        [Command("ep")]
+        [Summary("Grants EP to the user")]
+        [Remarks("ep Azar 10")]
+        public async Task AssignEffortPoints(string alias, int value)
+        {
+            _epgpService.Ep(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
+        }
+
+        [Command("ep")]
+        public async Task AssignEffortPoints(IGuildUser user, int value) =>
+            await AssignEffortPoints(user.GetAliasName(), value);
+
+        [Command("gp")]
+        [Summary("Grants GP to the user")]
+        [Remarks("gp Azar 10")]
+        public async Task AssignGearPoints(string alias, int value)
+        {
+            _epgpService.Gp(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
+        }
+
+        [Command("gp")]
+        public async Task AssignGearPoints(IGuildUser user, int value) =>
+            await AssignGearPoints(user.GetAliasName(), value);
+
+
 
         [Command("config")]
         [RequiresBotAdmin]
