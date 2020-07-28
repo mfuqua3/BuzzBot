@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Utility;
 using BuzzBot.Epgp;
+using BuzzBotData.Data;
 using BuzzBotData.Repositories;
 using Discord;
 using Discord.WebSocket;
@@ -14,6 +15,7 @@ namespace BuzzBot.Discord.Services
 {
     public class RaidService : IRaidService
     {
+        private readonly DiscordSocketClient _client;
         private readonly EpgpRepository _epgpRepository;
         private readonly IRaidMonitorFactory _raidMonitorFactory;
         public static string CasterEmote = $"<:{CasterEmoteName}:{CasterEmoteId}>";
@@ -60,10 +62,15 @@ namespace BuzzBot.Discord.Services
         private const int MaxConcurrentRaids = 1; //Only handles one raid in current version
         private readonly Dictionary<ulong, RaidData> _activeRaidMessages = new Dictionary<ulong, RaidData>();
         private readonly Dictionary<ulong, EpgpRaidMonitor> _raidMonitors = new Dictionary<ulong, EpgpRaidMonitor>();
+        private IEpgpConfigurationService _epgpConfigurationService;
+        private readonly IEpgpService _epgpService;
 
-        public RaidService(DiscordSocketClient client, IRaidMonitorFactory raidMonitorFactory, EpgpRepository epgpRepository)
+        public RaidService(DiscordSocketClient client, IRaidMonitorFactory raidMonitorFactory, EpgpRepository epgpRepository, IEpgpConfigurationService epgpConfigurationService, IEpgpService epgpService)
         {
+            _client = client;
             _epgpRepository = epgpRepository;
+            _epgpConfigurationService = epgpConfigurationService;
+            _epgpService = epgpService;
             _raidMonitorFactory = raidMonitorFactory;
             client.ReactionAdded += ReactionAdded;
             client.ReactionRemoved += ReactionRemoved;
@@ -80,6 +87,8 @@ namespace BuzzBot.Discord.Services
         {
             if (reaction.User.Value.IsBot) return;
             if (!_activeRaidMessages.ContainsKey(reaction.MessageId)) return;
+            if (!_epgpRepository.ContainsUser(reaction.UserId) &&
+                !(await TryAddUser(reaction.UserId, (reaction.Channel as IGuildChannel)?.Guild))) return;
             var raid = _activeRaidMessages[reaction.MessageId];
             HashSet<RaidParticipant> roleCollection;
             switch (reaction.Emote.Name)
@@ -127,6 +136,39 @@ namespace BuzzBot.Discord.Services
             await raid.Message.ModifyAsync(opt => opt.Embed = embed);
         }
 
+        private async Task<bool> TryAddUser(ulong userId, IGuild guild)
+        {
+            if (guild == null) return false;
+            var config = _epgpConfigurationService.GetConfiguration();
+            var ep = config.EpMinimum;
+            var gp = config.GpMinimum;
+            var guildUser = await guild.GetUserAsync(userId);
+            if (guildUser == null) return false;
+            var userClass = guildUser.GetClass();
+            if (userClass == WowClass.Unknown) return false;
+            try
+            {
+                var alias = new EpgpAlias
+                {
+                    UserId = userId,
+                    Class = userClass.ToDomainClass(),
+                    EffortPoints = 0,
+                    GearPoints = 0,
+                    IsPrimary = true,
+                    Name = guildUser.GetAliasName(),
+                    Id = Guid.NewGuid()
+                };
+                _epgpRepository.AddGuildUser(userId);
+                _epgpRepository.AddAlias(alias);
+                _epgpService.Set(alias.Name, ep, gp, "User initialization");
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         private enum ReactionAction
         {
             Add,
@@ -150,7 +192,7 @@ namespace BuzzBot.Discord.Services
         public async Task KickUser(ulong userId, ulong raidId = 0)
         {
             if (raidId == 0) raidId = _activeRaidMessages.Keys.LastOrDefault();
-            if(!_activeRaidMessages.ContainsKey(raidId))
+            if (!_activeRaidMessages.ContainsKey(raidId))
                 throw new InvalidOperationException("No active raid message was found for kick operation.");
             var raid = _activeRaidMessages[raidId];
             RemoveUser(raid.RaidObject.Melee, userId);

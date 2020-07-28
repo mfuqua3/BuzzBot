@@ -253,6 +253,8 @@ namespace BuzzBot.Discord.Modules
         public async Task AssignEffortPoints(string alias, int value)
         {
             _epgpService.Ep(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
+            var dmChannel = await Context.User.GetOrCreateDMChannelAsync();
+            await dmChannel.SendMessageAsync($"{value} EP successfully granted to {alias}");
         }
 
         [Command("ep")]
@@ -265,6 +267,8 @@ namespace BuzzBot.Discord.Modules
         public async Task AssignGearPoints(string alias, int value)
         {
             _epgpService.Gp(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
+            var dmChannel = await Context.User.GetOrCreateDMChannelAsync();
+            await dmChannel.SendMessageAsync($"{value} GP successfully granted to {alias}");
         }
 
         [Command("gp")]
@@ -316,16 +320,12 @@ namespace BuzzBot.Discord.Modules
         [Command("add")]
         [RequiresBotAdmin]
         [Summary("Adds a user to the database")]
-        [Remarks("add Azar 1 25")]
-        public async Task AddUser(string username, int ep = 0, int gp = 0)
+        [Remarks("add @Azar 1 25")]
+        public async Task AddUser(IGuildUser user, int ep = 0, int gp = 0)
         {
-            var user = Context.Guild.Users.FirstOrDefault(gu => gu.Username.StartsWith(username) || !string.IsNullOrWhiteSpace(gu.Nickname) && gu.Nickname.StartsWith(username));
-            if (user == null)
-            {
-                await ReplyAsync("No user could be found with that name");
-                return;
-            }
-
+            var config = _epgpConfigurationService.GetConfiguration();
+            if (ep < config.EpMinimum) ep = config.EpMinimum;
+            if (gp < config.GpMinimum) gp = config.GpMinimum;
             var id = user.Id;
             _repository.AddGuildUser(id);
             var userClass = user.GetClass();
@@ -337,30 +337,26 @@ namespace BuzzBot.Discord.Modules
             var alias = new EpgpAlias
             {
                 UserId = id,
-                Class = (Class)userClass,
+                Class = userClass.ToDomainClass(),
                 EffortPoints = ep,
                 GearPoints = gp,
                 IsPrimary = true,
-                Name = username,
+                Name = user.GetAliasName(),
                 Id = Guid.NewGuid()
             };
             _repository.AddAlias(alias);
-            await ReplyAsync($"New user added with primary alias of \"{username} : {userClass}\"");
+            await ReplyAsync($"New user added with primary alias of \"{user.GetAliasName()} : {userClass}\"");
         }
         [Command("alias")]
         [RequiresBotAdmin]
         [Summary("Adds an alias/alt to the specified user")]
-        [Remarks("alias Cantuna Zynum Warlock 1 25")]
-        public async Task AddAlias(string userName, string aliasName, string className, int ep = 0, int gp = 0)
+        [Remarks("alias @Cantuna Zynum Warlock 1 25")]
+        public async Task AddAlias(IGuildUser user, string aliasName, string className, int ep = 0, int gp = 0)
         {
-            var user = Context.Guild.Users.FirstOrDefault(gu => gu.Username.StartsWith(userName) || !string.IsNullOrWhiteSpace(gu.Nickname) && gu.Nickname.StartsWith(userName));
-            if (user == null)
-            {
-                await ReplyAsync($"No user could be found with that name: {userName}");
-                return;
-            }
+            var config = _epgpConfigurationService.GetConfiguration();
+            if (ep < config.EpMinimum) ep = config.EpMinimum;
+            if (gp < config.GpMinimum) gp = config.GpMinimum;
 
-            var id = user.Id;
             if (!className.TryParseClass(out var userClass))
             {
                 await ReplyAsync("Unable to parse class from provided class argument");
@@ -368,18 +364,77 @@ namespace BuzzBot.Discord.Modules
             }
             var alias = new EpgpAlias
             {
-                UserId = id,
-                Class = (Class)userClass,
-                EffortPoints = ep,
-                GearPoints = gp,
+                UserId = user.Id,
+                Class = userClass.ToDomainClass(),
+                EffortPoints = 0,
+                GearPoints = 0,
                 IsPrimary = false,
                 Name = aliasName,
                 Id = Guid.NewGuid()
             };
             _repository.AddAlias(alias);
-            await ReplyAsync($"New alias add to {userName}: \"{aliasName} : {userClass}\"");
+            _epgpService.Set(aliasName, ep, gp, "Alias initialized");
+            await ReplyAsync($"New alias add to {user.GetAliasName()}: \"{aliasName} : {userClass}\"");
         }
 
+        [Command("deletealias")]
+        [Summary("Deletes the alias from the EPGP database (but retains the user)")]
+        [Remarks("delete Baxterdruid")]
+        [RequiresBotAdmin]
+        public Task DeleteAlias(string aliasName)
+        {
+            Task.Run(async () =>
+            {
+                await _queryService.SendQuery(
+                    $"Are you sure you want to delete all record of {aliasName}? The user record will be retained, but all record of this alias will be purged. This can not be undone.",
+                    Context.Channel,
+                    async () =>
+                    {
+                        try
+                        {
+                            _repository.DeleteAlias(aliasName);
+                        }
+                        catch (Exception ex)
+                        {
+                            await ReplyAsync($"Unable to successfully remove alias: {ex.Message}");
+                            return;
+                        }
 
+                        await ReplyAsync("Alias removed successfully.");
+                    },
+                    async () => { await ReplyAsync("Operation cancelled"); });
+            });
+            return Task.CompletedTask;
+        }
+
+        [Command("deleteuser")]
+        [Summary("Deletes the user (and all aliases) from the EPGP database")]
+        [Remarks("delete @Marathonz")]
+        [RequiresBotAdmin]
+        public Task DeleteUser(IGuildUser user)
+        {
+            Task.Run(async () =>
+            {
+                await _queryService.SendQuery(
+                    $"Are you sure you want to delete all record of {user.GetAliasName()} and their aliases? This can not be undone.",
+                    Context.Channel,
+                    async () =>
+                    {
+                        try
+                        {
+                            _repository.DeleteGuildUser(user.Id);
+                        }
+                        catch (Exception ex)
+                        {
+                            await ReplyAsync($"Unable to successfully remove user: {ex.Message}");
+                            return;
+                        }
+
+                        await ReplyAsync("User removed successfully.");
+                    },
+                    async () => { await ReplyAsync("Operation cancelled"); });
+            });
+            return Task.CompletedTask;
+        }
     }
 }

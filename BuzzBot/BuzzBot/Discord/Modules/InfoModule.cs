@@ -33,10 +33,16 @@ namespace BuzzBot.Discord.Modules
         [Command("characters")]
         public async Task Characters(IGuildUser user)
         {
+            if (!_epgpRepository.ContainsUser(user.Id))
+            {
+                await ReplyAsync("No record of that user exists.");
+                return;
+            }
             var aliases = _epgpRepository.GetAliasesForUser(user.Id);
             if (!aliases.Any())
             {
                 await ReplyAsync("No aliases found for that user.");
+                return;
             }
 
             if (!aliases.Any(a => a.IsActive))
