@@ -98,8 +98,7 @@ namespace BuzzBot.Epgp
             }
 
             _raid.Started = true;
-            await messageChannel.SendMessageAsync("", false, GetRaidAlertEmbed($"The raid has begun"));
-            var award = AwardEp(_raid.StartBonus, "RAID START BONUS", GetAllUsers(_raid));
+            var award = AwardEp(_raid.StartBonus, "Raid Start Bonus", GetAllUsers(_raid));
             await messageChannel.SendMessageAsync("", false, award);
             var endTime = DateTime.UtcNow + _raid.Duration;
             while (!_cts.Token.IsCancellationRequested && endTime > DateTime.UtcNow)
@@ -108,7 +107,7 @@ namespace BuzzBot.Epgp
                 {
                     await Task.Delay(_raid.TimeBonusDuration, _cts.Token);
                     if (_raid == null) return;
-                    award = AwardEp(_raid.TimeBonus, "RAID TIME BONUS", GetAllUsers(_raid));
+                    award = AwardEp(_raid.TimeBonus, "Raid Time Bonus", GetAllUsers(_raid));
                     await messageChannel.SendMessageAsync("", false, award);
                 }
                 catch (TaskCanceledException)
@@ -117,8 +116,7 @@ namespace BuzzBot.Epgp
                 }
             }
             if (_raid == null) return;
-            await messageChannel.SendMessageAsync("", false, GetRaidAlertEmbed($"The raid has ended"));
-            award = AwardEp(_raid.EndBonus, "RAID END BONUS", GetAllUsers(_raid));
+            award = AwardEp(_raid.EndBonus, "Raid End Bonus", GetAllUsers(_raid));
             await messageChannel.SendMessageAsync("", false, award);
             Dispose();
         }
