@@ -6,12 +6,12 @@ namespace BuzzBot.Epgp
 {
     public class EpgpCalculator
     {
-        public double Calculate(Item item, bool isHunter)
+        public double Calculate(Item item, bool isHunter, bool isOffhand)
         {
             var iLevel = item.ItemLevel;
             var quality = item.QualityValue;
             var slot = item.InventorySlot;
-            return Math.Pow(GetItemValue(iLevel, quality), 2) * 0.04 * GetSlotValue(slot, isHunter);
+            return Math.Pow(GetItemValue(iLevel, quality), 2) * 0.04 * GetSlotValue(slot, isHunter, isOffhand);
         }
 
         private double GetItemValue(int iLevel, int quality)
@@ -31,8 +31,10 @@ namespace BuzzBot.Epgp
             }
         }
 
-        private double GetSlotValue(int slot, bool hunter = false)
+        private double GetSlotValue(int slot, bool hunter, bool isOffhand)
         {
+            if (isOffhand && slot == 13)
+                return 1;
             if (hunter)
                 switch (slot)
                 {
