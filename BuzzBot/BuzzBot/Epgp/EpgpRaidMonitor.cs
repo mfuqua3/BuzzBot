@@ -170,31 +170,14 @@ namespace BuzzBot.Epgp
 
         private DateTime GetTimestamp()
         {
-            var tzi = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
-            var timeEst = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tzi);
-            return timeEst;
+           return DateTime.Now;
         }
 
         private List<RaidParticipant> GetAllUsers(EpgpRaid raid)
         {
             var returnList = new List<RaidParticipant>();
-            returnList.AddRange(raid.Melee);
-            returnList.AddRange(raid.Casters);
-            returnList.AddRange(raid.Ranged);
-            returnList.AddRange(raid.Tanks);
-            returnList.AddRange(raid.Healers);
+            returnList.AddRange(raid.Participants.Values);
             return returnList;
-        }
-
-        private List<string> GetAliases(EpgpRaid raid)
-        {
-            var aliases = new List<EpgpAlias>();
-            aliases.AddRange(GetAliases(raid.Melee));
-            aliases.AddRange(GetAliases(raid.Casters));
-            aliases.AddRange(GetAliases(raid.Melee));
-            aliases.AddRange(GetAliases(raid.Melee));
-            aliases.AddRange(GetAliases(raid.Melee));
-            return aliases.Select(a => a.Name).Distinct().ToList();
         }
 
         private IEnumerable<EpgpAlias> GetAliases(IEnumerable<RaidParticipant> participants) =>

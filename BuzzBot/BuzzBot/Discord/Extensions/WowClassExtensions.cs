@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using BuzzBot.Discord.Utility;
 using BuzzBot.Epgp;
 using BuzzBotData.Data;
 
@@ -21,6 +22,29 @@ namespace BuzzBot.Discord.Extensions
             {Class.Warrior, WowClass.Warrior },
             {Class.Undefined, WowClass.Unknown }
         };
+
+        private static readonly Dictionary<WowClass, string> EmoteDictionary = new Dictionary<WowClass, string>
+        {
+            {WowClass.Warrior, EmbedConstants.WarriorEmoteName},
+            {WowClass.Paladin, EmbedConstants.PaladinEmoteName},
+            {WowClass.Hunter, EmbedConstants.HunterEmoteName},
+            {WowClass.Shaman, EmbedConstants.ShamanEmoteName},
+            {WowClass.Druid, EmbedConstants.DruidEmoteName},
+            {WowClass.Rogue, EmbedConstants.RogueEmoteName},
+            {WowClass.Priest, EmbedConstants.PriestEmoteName},
+            {WowClass.Warlock, EmbedConstants.WarlockEmoteName},
+            {WowClass.Mage, EmbedConstants.MageEmoteName},
+            {WowClass.Unknown, string.Empty},
+        };
+
+        public static string GetEmoteName(this WowClass wowClass)
+        {
+            return EmoteDictionary[wowClass];
+        }
+        public static string GetEmoteName(this Class domainClass)
+        {
+            return domainClass.ToWowClass().GetEmoteName();
+        }
         public static WowClass ToWowClass(this Class domainClass)
         {
             return ConversionDictionary[domainClass];

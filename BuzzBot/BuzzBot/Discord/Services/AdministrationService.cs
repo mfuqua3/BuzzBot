@@ -5,7 +5,14 @@ using Microsoft.Extensions.Configuration;
 
 namespace BuzzBot.Discord.Services
 {
-    public class AdministrationService
+    public interface IAdministrationService
+    {
+        bool IsUserAdmin(IUser user);
+        void Authorize(IUser user);
+        bool IsUserAdmin(ulong requestingUser);
+    }
+
+    public class AdministrationService : IAdministrationService
     {
         private readonly IConfiguration _configuration;
         private readonly HashSet<ulong> _adminUsers;

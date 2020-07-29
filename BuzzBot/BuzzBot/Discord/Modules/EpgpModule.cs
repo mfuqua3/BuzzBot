@@ -25,30 +25,35 @@ namespace BuzzBot.Discord.Modules
 {
 
     [Group(GroupName)]
-    public class EpgpModule : ModuleBase<SocketCommandContext>
+    public class EpgpModule : BuzzBotModuleBase<SocketCommandContext>
     {
         private readonly EpgpRepository _repository;
-        private readonly PriorityReportingService _priorityReportingService;
-        private readonly QueryService _queryService;
+        private readonly IPriorityReportingService _priorityReportingService;
+        private readonly IQueryService _queryService;
         private readonly IEpgpService _epgpService;
-        private readonly AuditService _auditService;
+        private readonly IAuditService _auditService;
         private readonly ItemRepository _itemRepository;
-        private readonly EpgpCalculator _epgpCalculator;
-        private IEpgpConfigurationService _epgpConfigurationService;
-        private PageService _pageService;
-        private DocumentationService _documentationService;
+        private readonly IEpgpCalculator _epgpCalculator;
+        private readonly IEpgpConfigurationService _epgpConfigurationService;
+        private readonly IPageService _pageService;
+        private readonly IDocumentationService _documentationService;
+        private IEmoteService _emoteService;
+        private IAliasService _aliasService;
         public const string GroupName = "epgp";
 
         public EpgpModule(
             EpgpRepository repository,
-            PriorityReportingService priorityReportingService,
-            QueryService queryService,
+            IPriorityReportingService priorityReportingService,
+            IQueryService queryService,
             IEpgpService epgpService,
-            AuditService auditService,
+            IAuditService auditService,
             ItemRepository itemRepository,
-            EpgpCalculator epgpCalculator,
+            IEpgpCalculator epgpCalculator,
             IEpgpConfigurationService epgpConfigurationService,
-            PageService pageService, DocumentationService documentationService)
+            IPageService pageService,
+            IDocumentationService documentationService,
+            IEmoteService emoteService,
+            IAliasService aliasService)
         {
             _repository = repository;
             _priorityReportingService = priorityReportingService;
@@ -60,6 +65,8 @@ namespace BuzzBot.Discord.Modules
             _epgpConfigurationService = epgpConfigurationService;
             _pageService = pageService;
             _documentationService = documentationService;
+            _emoteService = emoteService;
+            _aliasService = aliasService;
         }
 
         [Command("decay")]
@@ -78,8 +85,15 @@ namespace BuzzBot.Discord.Modules
                 }));
             return Task.CompletedTask;
         }
+        private string GetAliasString(EpgpAlias alias)
+        {
+            var emoteName = alias.Class.GetEmoteName();
+            var fullyQualifiedName = _emoteService.GetFullyQualifiedName(Context.Guild.Id, emoteName);
+            return $"{fullyQualifiedName} {alias.Name}";
+        }
 
-        [Command("gp")]
+
+        [Command("gp", RunMode = RunMode.Async)]
         [RequiresBotAdmin]
         public async Task GearPoints(IGuildUser user, [Remainder] string queryString)
         {
@@ -98,21 +112,16 @@ namespace BuzzBot.Discord.Modules
                 return;
             }
 
-#pragma warning disable 4014
-            Task.Run(async () =>
-#pragma warning restore 4014
-            {
-                var result = await _queryService.SendOptionSelectQuery(
-                    $"\"{queryString}\" yielded multiple results. Please select below",
-                    items,
-                    (itm) => itm.Name,
-                    Context.Channel, CancellationToken.None);
-                if (result == 0) return;
-                await GiveItemGearPoints(user, items[result - 1], isOffhand);
-            });
+            var result = await _queryService.SendOptionSelectQuery(
+                $"\"{queryString}\" yielded multiple results. Please select below",
+                items,
+                (itm) => itm.Name,
+                Context.Channel, CancellationToken.None);
+            if (result == -1) return;
+            await GiveItemGearPoints(user, items[result], isOffhand);
         }
 
-        [Command("cost")]
+        [Command("cost", RunMode = RunMode.Async)]
         public async Task Cost([Remainder] string queryString)
         {
             var isHunter = queryString.EndsWith(" -h");
@@ -131,19 +140,13 @@ namespace BuzzBot.Discord.Modules
                 await ReplyAsync("", false, CreateItemEmbed(items.First(), isHunter, isOffhand, out _));
                 return;
             }
-
-#pragma warning disable 4014
-            Task.Run(async () =>
-#pragma warning restore 4014
-            {
-                var result = await _queryService.SendOptionSelectQuery(
-                    $"\"{queryString}\" yielded multiple results. Please select below",
-                    items,
-                    (itm) => itm.Name,
-                    Context.Channel, CancellationToken.None);
-                if (result == 0) return;
-                await ReplyAsync("", false, CreateItemEmbed(items[result - 1], isHunter, isOffhand, out _));
-            });
+            var result = await _queryService.SendOptionSelectQuery(
+                $"\"{queryString}\" yielded multiple results. Please select below",
+                items,
+                (itm) => itm.Name,
+                Context.Channel, CancellationToken.None);
+            if (result == -1) return;
+            await ReplyAsync("", false, CreateItemEmbed(items[result], isHunter, isOffhand, out _));
         }
 
         private Embed CreateItemEmbed(Item item, bool isHunter, bool isOffhand, out double gp)
@@ -157,9 +160,11 @@ namespace BuzzBot.Discord.Modules
 
         private async Task GiveItemGearPoints(IGuildUser user, Item item, bool isOffhand)
         {
-            var embed = CreateItemEmbed(item, user.GetClass() == WowClass.Hunter, isOffhand, out var value);
-            await ReplyAsync($"Assigning to <@{user.Id}>", false, embed);
-            _epgpService.Gp(user.GetAliasName(), (int)Math.Round(value), item.Name, TransactionType.GpFromGear);
+            var activeAlias = _aliasService.GetActiveAlias(user.Id);
+            var embed = CreateItemEmbed(item, activeAlias.Class == Class.Hunter, isOffhand, out var value);
+            var userString = activeAlias.IsPrimary ? $"<@{user.Id}>" : GetAliasString(activeAlias);
+            await ReplyAsync($"Assigning to {userString}", false, embed);
+            _epgpService.Gp(activeAlias, (int)Math.Round(value), item.Name, TransactionType.GpFromGear);
         }
 
         [Command("correct")]
@@ -201,7 +206,7 @@ namespace BuzzBot.Discord.Modules
             await ReplyAsync("Done.");
         }
 
-        
+
 
         [Command("audit")]
         public async Task Audit(IGuildUser user) =>
@@ -210,18 +215,36 @@ namespace BuzzBot.Discord.Modules
         [Command("audit")]
         public async Task Audit(string aliasName)
         {
-            await _auditService.Audit(aliasName, await Context.User.GetOrCreateDMChannelAsync());
+            await _auditService.Audit(aliasName, await GetUserChannel());
         }
 
+        [Command("csv")]
+        [Summary("Exports a csv summary of the entire EPGP PR list")]
+        public async Task ExportCsv()
+        {
+            var channel = await GetUserChannel();
+            var aliases = _repository.GetAliases().OrderByDescending(a => (double)a.EffortPoints / a.GearPoints).ToList();
+            using var stream = new MemoryStream() { Capacity = 10240 };
+            using var textWriter = new StreamWriter(stream){AutoFlush = true};
+            using var writer = new CsvWriter(textWriter, CultureInfo.CurrentCulture);
+            {
+                //writer.WriteHeader<EpgpCsvResult>();
+                var records = aliases.Select(a => new EpgpCsvRecord()
+                { Name = a.Name, EP = a.EffortPoints, GP = a.GearPoints, PR = ((double)a.EffortPoints/a.GearPoints).ToString("F2")});
+                await writer.WriteRecordsAsync(records);
+            }
+            var data = stream.ToArray();
+            await channel.SendFileAsync(new MemoryStream(data), "epgp.csv");
+        }
 
         [Command("help")]
         [Alias("?")]
-        public async Task Help() => await _documentationService.SendDocumentation(await Context.User.GetOrCreateDMChannelAsync(), GroupName, Context.User.Id);
+        public async Task Help() => await _documentationService.SendDocumentation(await GetUserChannel(), GroupName, Context.User.Id);
         [Command("pr")]
         [Summary("DMs the guilds priority list to requesting user")]
         public async Task PrintPriority()
         {
-            await _priorityReportingService.ReportAll(await Context.User.GetOrCreateDMChannelAsync());
+            await _priorityReportingService.ReportAll(await GetUserChannel());
         }
 
         [Command("pr")]
@@ -229,7 +252,7 @@ namespace BuzzBot.Discord.Modules
         [Remarks(@"pr Azar Triqueta Fragrock")]
         public async Task PrintPriority(params string[] userNames)
         {
-            await _priorityReportingService.ReportAliases(await Context.User.GetOrCreateDMChannelAsync(), userNames);
+            await _priorityReportingService.ReportAliases(await GetUserChannel(), userNames);
         }
 
         [Command("pr")]
@@ -259,14 +282,21 @@ namespace BuzzBot.Discord.Modules
         public async Task AssignEffortPoints(string alias, int value)
         {
             _epgpService.Ep(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
-            var dmChannel = await Context.User.GetOrCreateDMChannelAsync();
+            var dmChannel = await GetUserChannel();
             await dmChannel.SendMessageAsync($"{value} EP successfully granted to {alias}");
         }
 
         [Command("ep")]
+        [Summary("Grants EP to the user")]
+        [Remarks("ep Azar 10")]
         [RequiresBotAdmin]
-        public async Task AssignEffortPoints(IGuildUser user, int value) =>
-            await AssignEffortPoints(user.GetAliasName(), value);
+        public async Task AssignEffortPoints(IGuildUser user, int value)
+        {
+            var alias = _aliasService.GetActiveAlias(user.Id);
+            _epgpService.Ep(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
+            var dmChannel = await GetUserChannel();
+            await dmChannel.SendMessageAsync($"{value} EP successfully granted to {GetAliasString(alias)}");
+        }
 
         [Command("gp")]
         [Summary("Grants GP to the user")]
@@ -275,7 +305,7 @@ namespace BuzzBot.Discord.Modules
         public async Task AssignGearPoints(string alias, int value)
         {
             _epgpService.Gp(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
-            var dmChannel = await Context.User.GetOrCreateDMChannelAsync();
+            var dmChannel = await GetUserChannel();
             await dmChannel.SendMessageAsync($"{value} GP successfully granted to {alias}");
         }
 
@@ -311,7 +341,7 @@ namespace BuzzBot.Discord.Modules
                 {
                     valueString = $" ({value.ToString()})";
                 }
-                pageBuilder.AddRow(new[] { key.ToString(), name, $"{(int)value}{valueString}"});
+                pageBuilder.AddRow(new[] { key.ToString(), name, $"{(int)value}{valueString}" });
             }
 
             await _pageService.SendPages(Context.Channel, pageBuilder.Build());

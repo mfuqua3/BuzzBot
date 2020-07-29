@@ -10,7 +10,7 @@ using Discord.WebSocket;
 
 namespace BuzzBot.Discord.Services
 {
-    public class PageService
+    public class PageService : IPageService
     {
         private readonly ConcurrentDictionary<ulong, PagedContent> _pagedContentDictionary = new ConcurrentDictionary<ulong, PagedContent>();
         private const string ArrowBackward = @"⬅️";

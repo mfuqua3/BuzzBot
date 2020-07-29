@@ -12,17 +12,18 @@ namespace BuzzBot.Discord.Extensions
         {
             var client = new DiscordSocketClient();
             services.AddSingleton(client)
-                .AddSingleton<AdministrationService>()
+                .AddSingleton<IAdministrationService, AdministrationService>()
                 .AddSingleton<CommandService>()
                 .AddSingleton<CommandHandlingService>()
                 .AddSingleton<LogService>()
                 .AddSingleton<ItemRequestService>()
                 .AddSingleton<IRaidService, RaidService>()
-                .AddTransient<PriorityReportingService>()
-                .AddSingleton<PageService>()
-                .AddSingleton<QueryService>()
-                .AddTransient<DocumentationService>()
-                .AddTransient<AuditService>();
+                .AddTransient<IPriorityReportingService, PriorityReportingService>()
+                .AddSingleton<IPageService, PageService>()
+                .AddSingleton<IQueryService, QueryService>()
+                .AddTransient<IDocumentationService, DocumentationService>()
+                .AddTransient<IAuditService, AuditService>()
+                .AddSingleton<IEmoteService, EmoteService>();
             return services;
         }
     }

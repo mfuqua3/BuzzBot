@@ -1,23 +1,25 @@
 ﻿using BuzzBotData.Data;
 using BuzzBotData.Repositories;
 using Discord;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using BuzzBot.Discord.Utility;
 
 namespace BuzzBot.Discord.Services
 {
-    public class PriorityReportingService
+    public interface IPriorityReportingService
+    {
+        Task ReportAll(IMessageChannel messageChannel);
+        Task ReportAliases(IMessageChannel messageChannel, params string[] names);
+    }
+
+    public class PriorityReportingService : IPriorityReportingService
     {
         private readonly EpgpRepository _epgpRepository;
-        private readonly PageService _pageService;
-        private const string Header = @"  Member                    EP        GP        PR";
-        private const string HorizontalRule = @"--------------------------------------------------";
+        private readonly IPageService _pageService;
 
-        public PriorityReportingService(EpgpRepository epgpRepository, PageService pageService)
+        public PriorityReportingService(EpgpRepository epgpRepository, IPageService pageService)
         {
             _epgpRepository = epgpRepository;
             _pageService = pageService;
@@ -64,48 +66,5 @@ namespace BuzzBot.Discord.Services
 
             await _pageService.SendPages(messageChannel, formatBuilder.Build());
         }
-
-        private string FormatAlias(EpgpAlias alias, bool alternate)
-        {
-            var codeSb = new StringBuilder();
-            var codeIdentifier = alternate ? "+" : "-";
-            var epIndex = Header.IndexOf("EP", StringComparison.Ordinal) - 2;
-            var gpIndex = Header.IndexOf("GP", StringComparison.Ordinal) - 2;
-            var prIndex = Header.IndexOf("PR", StringComparison.Ordinal) - 2;
-            codeSb.Append($"{codeIdentifier} ");
-            var aliasInfoSb = new StringBuilder();
-            aliasInfoSb.Append(alias.Name);
-            while (aliasInfoSb.Length < epIndex)
-            {
-                aliasInfoSb.Append(' ');
-            }
-
-            if (alias.EffortPoints < 100) aliasInfoSb.Append(' ');
-            if (alias.EffortPoints < 10) aliasInfoSb.Append(' ');
-            aliasInfoSb.Append(alias.EffortPoints);
-
-
-            while (aliasInfoSb.Length < gpIndex)
-            {
-                aliasInfoSb.Append(' ');
-            }
-
-            if (alias.GearPoints < 100) aliasInfoSb.Append(' ');
-            if (alias.GearPoints < 10) aliasInfoSb.Append(' ');
-            aliasInfoSb.Append(alias.GearPoints);
-
-
-            while (aliasInfoSb.Length < prIndex)
-            {
-                aliasInfoSb.Append(' ');
-            }
-
-            var priority = (double)alias.EffortPoints / alias.GearPoints;
-            aliasInfoSb.Append(priority.ToString("F2"));
-            codeSb.Append(aliasInfoSb.ToString());
-            return codeSb.ToString();
-        }
-
-
     }
 }

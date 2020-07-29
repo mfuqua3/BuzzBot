@@ -14,21 +14,21 @@ using Discord.Commands;
 namespace BuzzBot.Discord.Modules
 {
     [Group(GroupName)]
-    public class RaidModule : ModuleBase<SocketCommandContext>
+    public class RaidModule : BuzzBotModuleBase<SocketCommandContext>
     {
         private const string GroupName = @"raid";
         private readonly IRaidService _raidService;
         private readonly IRaidFactory _raidFactory;
         private readonly IEpgpConfigurationService _epgpConfigurationService;
-        private readonly DocumentationService _documentationService;
-        private readonly PageService _pageService;
+        private readonly IDocumentationService _documentationService;
+        private readonly IPageService _pageService;
 
         public RaidModule(
             IRaidService raidService,
             IRaidFactory raidFactory,
             IEpgpConfigurationService epgpConfigurationService,
-            DocumentationService documentationService,
-            PageService pageService)
+            IDocumentationService documentationService,
+            IPageService pageService)
         {
             _raidService = raidService;
             _raidFactory = raidFactory;
@@ -62,8 +62,14 @@ namespace BuzzBot.Discord.Modules
                 await ReplyAsync(ex.Message);
                 return;
             }
+
+            if (raid == null)
+            {
+                await ReplyAsync("No template by that name exists");
+                return;
+            }
             raid.RaidLeader = Context.User.Id;
-            await _raidService.PostRaid(ReplyAsync, raid);
+            await _raidService.PostRaid(Context.Channel, raid);
         }
         [Command("template")]
         [Summary("Prints a summary of all configured raid templates.")]

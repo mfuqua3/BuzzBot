@@ -12,11 +12,11 @@ namespace BuzzBot.Discord.Modules
     public class WowheadModule : ModuleBase<SocketCommandContext>
     {
         private readonly IWowheadClient _wowheadClient;
-        private readonly EpgpCalculator _epgpCalculator;
-        private readonly QueryService _queryService;
+        private readonly IEpgpCalculator _epgpCalculator;
+        private readonly IQueryService _queryService;
         private readonly ItemRepository _itemRepository;
 
-        public WowheadModule(IWowheadClient wowheadClient, EpgpCalculator epgpCalculator, QueryService queryService, ItemRepository itemRepository)
+        public WowheadModule(IWowheadClient wowheadClient, IEpgpCalculator epgpCalculator, IQueryService queryService, ItemRepository itemRepository)
         {
             _wowheadClient = wowheadClient;
             _epgpCalculator = epgpCalculator;

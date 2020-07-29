@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Threading.Tasks;
 using BuzzBot.Epgp;
+using Discord;
 
 namespace BuzzBot.Discord.Services
 {
     public interface IRaidService
     {
-        Task<ulong> PostRaid(ReplyDelegate replyDelegate, EpgpRaid raidObject);
+        Task<ulong> PostRaid(IMessageChannel messageChannel, EpgpRaid raidObject);
         void Start(ulong raidId = 0);
         void Extend(TimeSpan extend, ulong raidId = 0);
         void End(ulong raidId = 0);
