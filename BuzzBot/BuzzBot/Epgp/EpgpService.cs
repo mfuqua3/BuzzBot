@@ -58,8 +58,13 @@ namespace BuzzBot.Epgp
 
         public void Ep(string aliasName, int value, string memo, TransactionType type = TransactionType.EpManual)
         {
-            var config = _configurationService.GetConfiguration();
             var alias = _epgpRepository.GetAlias(aliasName);
+            Ep(alias, value, memo, type);
+        }
+
+        public void Ep(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.GpManual)
+        {
+            var config = _configurationService.GetConfiguration();
             var change = alias.EffortPoints + value < config.EpMinimum ? alias.EffortPoints - config.EpMinimum : value;
             var transaction = new EpgpTransaction
             {
@@ -72,7 +77,6 @@ namespace BuzzBot.Epgp
             _epgpRepository.PostTransaction(transaction);
             _epgpRepository.Save();
         }
-
         public void Gp(string aliasName, int value, string memo, TransactionType type = TransactionType.GpManual)
         {
             var alias = _epgpRepository.GetAlias(aliasName);
@@ -95,6 +99,7 @@ namespace BuzzBot.Epgp
             _epgpRepository.Save();
         }
 
+
         public bool Set([NotNull] string aliasName, int ep, int gp, string memo = "Manual Value Correction")
         {
             var alias = _epgpRepository.GetAlias(aliasName);
@@ -103,11 +108,11 @@ namespace BuzzBot.Epgp
             var gpChange = gp - alias.GearPoints;
             if (epChange != 0)
             {
-                Ep(aliasName, epChange, memo);
+                Ep(alias, epChange, memo);
             }
             if (gpChange != 0)
             {
-                Gp(aliasName, gpChange, memo);
+                Gp(alias, gpChange, memo);
             }
 
             return true;
@@ -126,9 +131,9 @@ namespace BuzzBot.Epgp
                 var epDecay = (int)Math.Round(alias.EffortPoints * asPercent, MidpointRounding.AwayFromZero);
                 var gpDecay = (int)Math.Round(alias.GearPoints * asPercent, MidpointRounding.AwayFromZero);
                 if (string.IsNullOrWhiteSpace(epgpFlag) || epgpFlag.Equals(EpFlag))
-                    Ep(alias.Name, epDecay, $"{decayPercent}% Decay", TransactionType.EpDecay);
+                    Ep(alias, epDecay, $"{decayPercent}% Decay", TransactionType.EpDecay);
                 if (string.IsNullOrWhiteSpace(epgpFlag) || epgpFlag.Equals(GpFlag))
-                    Gp(alias.Name, gpDecay, $"{decayPercent}% Decay", TransactionType.GpDecay);
+                    Gp(alias, gpDecay, $"{decayPercent}% Decay", TransactionType.GpDecay);
             }
         }
     }
