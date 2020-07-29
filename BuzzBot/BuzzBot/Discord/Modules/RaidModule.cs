@@ -62,8 +62,14 @@ namespace BuzzBot.Discord.Modules
                 await ReplyAsync(ex.Message);
                 return;
             }
+
+            if (raid == null)
+            {
+                await ReplyAsync("No template by that name exists");
+                return;
+            }
             raid.RaidLeader = Context.User.Id;
-            await _raidService.PostRaid(ReplyAsync, raid);
+            await _raidService.PostRaid(Context.Channel, raid);
         }
         [Command("template")]
         [Summary("Prints a summary of all configured raid templates.")]

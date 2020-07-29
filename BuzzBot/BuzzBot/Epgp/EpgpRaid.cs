@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
+using System.Security.Policy;
 
 namespace BuzzBot.Epgp
 {
@@ -14,11 +17,7 @@ namespace BuzzBot.Epgp
         public TimeSpan Duration { get; set; }
         public ulong RaidLeader { get; set; }
         public int Capacity { get; set; }
-        public int Joined => Casters.Count + Tanks.Count + Melee.Count + Healers.Count + Ranged.Count;
-        public HashSet<RaidParticipant> Casters { get; set; } = new HashSet<RaidParticipant>();
-        public HashSet<RaidParticipant> Tanks { get; set; } = new HashSet<RaidParticipant>();
-        public HashSet<RaidParticipant> Melee { get; set; } = new HashSet<RaidParticipant>();
-        public HashSet<RaidParticipant> Healers { get; set; } = new HashSet<RaidParticipant>();
-        public HashSet<RaidParticipant> Ranged { get; set; } = new HashSet<RaidParticipant>();
+        public int Joined => Participants.Count(p => p.Value.Role != Role.Bench);
+        public ConcurrentDictionary<ulong, RaidParticipant> Participants { get; set; } = new ConcurrentDictionary<ulong, RaidParticipant>();
     }
 }

@@ -75,8 +75,13 @@ namespace BuzzBot.Epgp
 
         public void Gp(string aliasName, int value, string memo, TransactionType type = TransactionType.GpManual)
         {
-            var config = _configurationService.GetConfiguration();
             var alias = _epgpRepository.GetAlias(aliasName);
+            Gp(alias, value, memo, type);
+        }
+
+        public void Gp(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.GpManual)
+        {
+            var config = _configurationService.GetConfiguration();
             var change = alias.GearPoints + value < config.GpMinimum ? alias.GearPoints - config.GpMinimum : value;
             var transaction = new EpgpTransaction
             {
@@ -84,7 +89,7 @@ namespace BuzzBot.Epgp
                 Memo = memo,
                 TransactionDateTime = DateTime.UtcNow,
                 TransactionType = type,
-                Value = value
+                Value = change
             };
             _epgpRepository.PostTransaction(transaction);
             _epgpRepository.Save();

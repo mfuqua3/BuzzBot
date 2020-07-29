@@ -22,7 +22,8 @@ namespace BuzzBot.Discord.Extensions
                 .AddSingleton<IPageService, PageService>()
                 .AddSingleton<IQueryService, QueryService>()
                 .AddTransient<IDocumentationService, DocumentationService>()
-                .AddTransient<IAuditService, AuditService>();
+                .AddTransient<IAuditService, AuditService>()
+                .AddSingleton<IEmoteService, EmoteService>();
             return services;
         }
     }

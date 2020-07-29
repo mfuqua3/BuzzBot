@@ -9,9 +9,20 @@
         }
 
         public ulong Id { get; }
-        public WowClass WowClass { get; }
+        public WowClass WowClass { get; set; }
         public bool IsPrimaryAlias { get; set; } = true;
         public string Alias { get; set; }
+        public Role Role { get; set; }
+    }
+
+    public enum Role
+    {
+        Tank,
+        Healer,
+        Caster,
+        Melee,
+        Ranged,
+        Bench
     }
     public enum WowClass
     {
