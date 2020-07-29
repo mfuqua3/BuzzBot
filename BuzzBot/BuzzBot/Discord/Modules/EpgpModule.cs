@@ -80,8 +80,12 @@ namespace BuzzBot.Discord.Modules
         }
 
         [Command("gp")]
+        [RequiresBotAdmin]
         public async Task GearPoints(IGuildUser user, [Remainder] string queryString)
         {
+            var isOffhand = queryString.EndsWith(" -oh");
+            if (isOffhand)
+                queryString = queryString.Substring(0, queryString.Length - 4);
             var items = _itemRepository.GetItems(queryString).OrderByDescending(itm => itm.ItemLevel).ToList();
             if (items.Count == 0)
             {
@@ -90,7 +94,7 @@ namespace BuzzBot.Discord.Modules
             }
             if (items.Count == 1)
             {
-                await GiveItemGearPoints(user, items.First());
+                await GiveItemGearPoints(user, items.First(), isOffhand);
                 return;
             }
 
@@ -104,7 +108,7 @@ namespace BuzzBot.Discord.Modules
                     (itm) => itm.Name,
                     Context.Channel, CancellationToken.None);
                 if (result == 0) return;
-                await GiveItemGearPoints(user, items[result - 1]);
+                await GiveItemGearPoints(user, items[result - 1], isOffhand);
             });
         }
 
@@ -112,8 +116,9 @@ namespace BuzzBot.Discord.Modules
         public async Task Cost([Remainder] string queryString)
         {
             var isHunter = queryString.EndsWith(" -h");
-            if (isHunter)
-                queryString = queryString.Substring(0, queryString.Length - 3);
+            var isOffhand = queryString.EndsWith(" -oh");
+            if (isHunter || isOffhand)
+                queryString = queryString.Substring(0, queryString.Length - 4);
 
             var items = _itemRepository.GetItems(queryString).OrderByDescending(itm => itm.ItemLevel).ToList();
             if (items.Count == 0)
@@ -123,7 +128,7 @@ namespace BuzzBot.Discord.Modules
             }
             if (items.Count == 1)
             {
-                await ReplyAsync("", false, CreateItemEmbed(items.First(), isHunter, out _));
+                await ReplyAsync("", false, CreateItemEmbed(items.First(), isHunter, isOffhand, out _));
                 return;
             }
 
@@ -137,22 +142,22 @@ namespace BuzzBot.Discord.Modules
                     (itm) => itm.Name,
                     Context.Channel, CancellationToken.None);
                 if (result == 0) return;
-                await ReplyAsync("", false, CreateItemEmbed(items[result - 1], isHunter, out _));
+                await ReplyAsync("", false, CreateItemEmbed(items[result - 1], isHunter, isOffhand, out _));
             });
         }
 
-        private Embed CreateItemEmbed(Item item, bool isHunter, out double gp)
+        private Embed CreateItemEmbed(Item item, bool isHunter, bool isOffhand, out double gp)
         {
-            gp = _epgpCalculator.Calculate(item, isHunter);
+            gp = _epgpCalculator.Calculate(item, isHunter, isOffhand);
             var embed = new EmbedBuilder();
             embed.WithTitle($"{item.Name} : {gp:F0} GP");
             embed.WithImageUrl($"http://www.korkd.com/wow_img/{item.Id}.png");
             return embed.Build();
         }
 
-        private async Task GiveItemGearPoints(IGuildUser user, Item item)
+        private async Task GiveItemGearPoints(IGuildUser user, Item item, bool isOffhand)
         {
-            var embed = CreateItemEmbed(item, user.GetClass() == WowClass.Hunter, out var value);
+            var embed = CreateItemEmbed(item, user.GetClass() == WowClass.Hunter, isOffhand, out var value);
             await ReplyAsync($"Assigning to <@{user.Id}>", false, embed);
             _epgpService.Gp(user.GetAliasName(), (int)Math.Round(value), item.Name, TransactionType.GpFromGear);
         }
@@ -250,6 +255,7 @@ namespace BuzzBot.Discord.Modules
         [Command("ep")]
         [Summary("Grants EP to the user")]
         [Remarks("ep Azar 10")]
+        [RequiresBotAdmin]
         public async Task AssignEffortPoints(string alias, int value)
         {
             _epgpService.Ep(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
@@ -258,12 +264,14 @@ namespace BuzzBot.Discord.Modules
         }
 
         [Command("ep")]
+        [RequiresBotAdmin]
         public async Task AssignEffortPoints(IGuildUser user, int value) =>
             await AssignEffortPoints(user.GetAliasName(), value);
 
         [Command("gp")]
         [Summary("Grants GP to the user")]
         [Remarks("gp Azar 10")]
+        [RequiresBotAdmin]
         public async Task AssignGearPoints(string alias, int value)
         {
             _epgpService.Gp(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
@@ -272,6 +280,7 @@ namespace BuzzBot.Discord.Modules
         }
 
         [Command("gp")]
+        [RequiresBotAdmin]
         public async Task AssignGearPoints(IGuildUser user, int value) =>
             await AssignGearPoints(user.GetAliasName(), value);
 
