@@ -215,14 +215,27 @@ namespace BuzzBot.Discord.Modules
         [Command("audit")]
         public async Task Audit(string aliasName)
         {
-            // ReSharper disable once RedundantAssignment
-            IMessageChannel channel = await GetUserChannel();
-#if DEBUG
-            channel = Context.Channel;
-#endif
-            await _auditService.Audit(aliasName, channel);
+            await _auditService.Audit(aliasName, await GetUserChannel());
         }
 
+        [Command("csv")]
+        [Summary("Exports a csv summary of the entire EPGP PR list")]
+        public async Task ExportCsv()
+        {
+            var channel = await GetUserChannel();
+            var aliases = _repository.GetAliases().OrderByDescending(a => (double)a.EffortPoints / a.GearPoints).ToList();
+            using var stream = new MemoryStream() { Capacity = 10240 };
+            using var textWriter = new StreamWriter(stream){AutoFlush = true};
+            using var writer = new CsvWriter(textWriter, CultureInfo.CurrentCulture);
+            {
+                //writer.WriteHeader<EpgpCsvResult>();
+                var records = aliases.Select(a => new EpgpCsvRecord()
+                { Name = a.Name, EP = a.EffortPoints, GP = a.GearPoints, PR = ((double)a.EffortPoints/a.GearPoints).ToString("F2")});
+                await writer.WriteRecordsAsync(records);
+            }
+            var data = stream.ToArray();
+            await channel.SendFileAsync(new MemoryStream(data), "epgp.csv");
+        }
 
         [Command("help")]
         [Alias("?")]

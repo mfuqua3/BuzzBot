@@ -70,10 +70,6 @@ namespace BuzzBot.Discord.Modules
                 $"<@{e.User}> has swapped from {GetAliasString(e.OldValue)} to {GetAliasString(e.NewValue)}");
         }
 
-        ~AliasModule()
-        {
-            ;
-        }
 
         [Command("switch", RunMode = RunMode.Async)]
         public async Task Switch() => await Switch(Context.User as IGuildUser);
