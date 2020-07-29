@@ -32,11 +32,11 @@ namespace BuzzBot.Discord.Services
 
         private readonly Dictionary<int, string> _optionsDictionary = new Dictionary<int, string>
         {
-            {1,One},
-            {2,Two},
-            {3,Three},
-            {4,Four},
-            {5,Five}
+            {0,One},
+            {1,Two},
+            {2,Three},
+            {3,Four},
+            {4,Five}
         };
 
         private readonly Dictionary<string, int> _resultDictionary;
@@ -63,7 +63,7 @@ namespace BuzzBot.Discord.Services
 
         public async Task<int> SendOptionSelectQuery<T>(string query, List<T> options, Func<T, string> optionQueryBuilder, IMessageChannel channel, CancellationToken token)
         {
-            if (!options.Any()) return 0;
+            if (!options.Any()) return -1;
             if (options.Count == 1) return 1;
             var truncated = options.Count > SupportedQueryOptions;
             var querySb = new StringBuilder();
@@ -76,7 +76,7 @@ namespace BuzzBot.Discord.Services
             for (int i = 0; i < options.Count; i++)
             {
                 if (i == SupportedQueryOptions) break;
-                var line = $"{_optionsDictionary[i + 1]} - {optionQueryBuilder(options[i])}";
+                var line = $"{_optionsDictionary[i]} - {optionQueryBuilder(options[i])}";
                 querySb.AppendLine(line);
             }
 
@@ -86,12 +86,12 @@ namespace BuzzBot.Discord.Services
             var embedBuilder = new EmbedBuilder();
             embedBuilder.AddField("Query", querySb.ToString());
             var message = await channel.SendMessageAsync("", false, embedBuilder.Build());
-            if (!_activeQueries.TryAdd(message.Id, queryObj)) return 0;
+            if (!_activeQueries.TryAdd(message.Id, queryObj)) return -1;
 
             for (int i = 0; i < options.Count; i++)
             {
                 if (i == SupportedQueryOptions) break;
-                await message.AddReactionAsync(new Emoji(_optionsDictionary[i + 1]));
+                await message.AddReactionAsync(new Emoji(_optionsDictionary[i]));
             }
 
             await message.AddReactionAsync(new Emoji(Cancel));
@@ -120,7 +120,7 @@ namespace BuzzBot.Discord.Services
             }
             catch (TaskCanceledException)
             {
-                result = 0;
+                result = -1;
             }
 
             _activeQueries.TryRemove(query.Key, out _);

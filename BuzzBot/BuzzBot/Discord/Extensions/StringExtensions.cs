@@ -1,4 +1,5 @@
 ﻿using System;
+using BuzzBot.Discord.Utility;
 using BuzzBot.Epgp;
 using Microsoft.AspNetCore.Mvc.TagHelpers.Cache;
 
@@ -6,6 +7,24 @@ namespace BuzzBot.Discord.Extensions
 {
     public static class StringExtensions
     {
+        public static Role ParseRoleFromEmote(this string emote)
+        {
+            switch (emote)
+            {
+                case EmbedConstants.MeleeEmoteName:
+                    return Role.Melee;
+                case EmbedConstants.CasterEmoteName:
+                    return Role.Caster;
+                case EmbedConstants.TankEmoteName:
+                    return Role.Tank;
+                case EmbedConstants.HealerEmoteName:
+                    return Role.Healer;
+                case EmbedConstants.RangedEmoteName:
+                    return Role.Ranged;
+                default:
+                    return Role.Bench;
+            }
+        }
         public static bool TryParseClass(this string classString, out WowClass wowClass)
         {
             wowClass = WowClass.Unknown;

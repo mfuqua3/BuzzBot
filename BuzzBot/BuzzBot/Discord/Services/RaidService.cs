@@ -18,62 +18,48 @@ namespace BuzzBot.Discord.Services
         private readonly DiscordSocketClient _client;
         private readonly EpgpRepository _epgpRepository;
         private readonly IRaidMonitorFactory _raidMonitorFactory;
-        public static string CasterEmote = $"<:{CasterEmoteName}:{CasterEmoteId}>";
-        public static string MeleeEmote = $"<:{MeleeEmoteName}:{MeleeEmoteId}>";
-        public static string RangedEmote = $"<:{RangedEmoteName}:{RangedEmoteId}>";
-        public static string TankEmote = $"<:{TankEmoteName}:{TankEmoteId}>";
-        public static string HealerEmote = $"<:{HealerEmoteName}:{HealerEmoteId}>";
-
-        public const string WarriorEmote = "<:epgp_warrior:632577999664971776>";
-        public const string PaladinEmote = "<:epgp_paladin:632578774063382548>";
-        public const string HunterEmote = "<:epgp_hunter:632577999559983114>";
-        public const string ShamanEmote = "<:epgp_shaman:632577999329296405>";
-        public const string DruidEmote = "<:epgp_druid:632577999211855895>";
-        public const string RogueEmote = "<:epgp_rogue:632577999673360384>";
-        public const string PriestEmote = "<:epgp_priest:632577999580954634>";
-        public const string WarlockEmote = "<:epgp_warlock:632577999652519966>";
-        public const string MageEmote = "<:epgp_mage:632579085708689419>";
-
-        private readonly Dictionary<WowClass, string> _emoteDictionary = new Dictionary<WowClass, string>
-        {
-            {WowClass.Warrior, WarriorEmote},
-            {WowClass.Paladin, PaladinEmote},
-            {WowClass.Hunter, HunterEmote},
-            {WowClass.Shaman, ShamanEmote},
-            {WowClass.Druid, DruidEmote},
-            {WowClass.Rogue, RogueEmote},
-            {WowClass.Priest, PriestEmote},
-            {WowClass.Warlock, WarlockEmote},
-            {WowClass.Mage, MageEmote},
-            {WowClass.Unknown, String.Empty},
-        };
-
-        public const string CasterEmoteName = @"epgp_caster";
-        public const string MeleeEmoteName = @"epgp_melee";
-        public const string RangedEmoteName = @"epgp_ranged";
-        public const string TankEmoteName = @"epgp_tank";
-        public const string HealerEmoteName = @"epgp_healer";
-        public const ulong CasterEmoteId = 632575256464195596;
-        public const ulong MeleeEmoteId = 632575285635579935;
-        public const ulong RangedEmoteId = 632575300110385152;
-        public const ulong TankEmoteId = 632575312818864128;
-        public const ulong HealerEmoteId = 632575274067951626;
-
         private const int MaxConcurrentRaids = 1; //Only handles one raid in current version
         private readonly Dictionary<ulong, RaidData> _activeRaidMessages = new Dictionary<ulong, RaidData>();
         private readonly Dictionary<ulong, EpgpRaidMonitor> _raidMonitors = new Dictionary<ulong, EpgpRaidMonitor>();
-        private IEpgpConfigurationService _epgpConfigurationService;
+        private readonly IEpgpConfigurationService _epgpConfigurationService;
         private readonly IEpgpService _epgpService;
+        private readonly IAliasService _aliasService;
+        private readonly IEmoteService _emoteService;
 
-        public RaidService(DiscordSocketClient client, IRaidMonitorFactory raidMonitorFactory, EpgpRepository epgpRepository, IEpgpConfigurationService epgpConfigurationService, IEpgpService epgpService)
+        public RaidService(
+            DiscordSocketClient client,
+            IRaidMonitorFactory raidMonitorFactory,
+            EpgpRepository epgpRepository,
+            IEpgpConfigurationService epgpConfigurationService,
+            IEpgpService epgpService,
+            IAliasService aliasService,
+            IEmoteService emoteService)
         {
             _client = client;
             _epgpRepository = epgpRepository;
             _epgpConfigurationService = epgpConfigurationService;
             _epgpService = epgpService;
+            _aliasService = aliasService;
+            _emoteService = emoteService;
             _raidMonitorFactory = raidMonitorFactory;
             client.ReactionAdded += ReactionAdded;
             client.ReactionRemoved += ReactionRemoved;
+            _aliasService.ActiveAliasChanged += ActiveAliasChanged;
+        }
+
+        private async void ActiveAliasChanged(object sender, AliasChangeEventArgs e)
+        {
+            foreach (var raid in _activeRaidMessages.Values.ToList())
+            {
+                if (!raid.RaidObject.Participants.ContainsKey(e.User)) continue;
+                var participant = raid.RaidObject.Participants[e.User];
+                participant.Alias = e.NewValue.Name;
+                participant.WowClass = e.NewValue.Class.ToWowClass();
+                participant.IsPrimaryAlias = e.NewValue.IsPrimary;
+
+                var embed = CreateEmbed(raid.RaidObject, raid.ServerId);
+                await raid.Message.ModifyAsync(opt => opt.Embed = embed);
+            }
         }
 
         private async Task ReactionRemoved(Cacheable<IUserMessage, ulong> _, ISocketMessageChannel __, SocketReaction reaction)
@@ -90,51 +76,34 @@ namespace BuzzBot.Discord.Services
             if (!_epgpRepository.ContainsUser(reaction.UserId) &&
                 !(await TryAddUser(reaction.UserId, (reaction.Channel as IGuildChannel)?.Guild))) return;
             var raid = _activeRaidMessages[reaction.MessageId];
-            HashSet<RaidParticipant> roleCollection;
-            switch (reaction.Emote.Name)
-            {
-                case MeleeEmoteName:
-                    roleCollection = raid.RaidObject.Melee;
-                    break;
-                case RangedEmoteName:
-                    roleCollection = raid.RaidObject.Ranged;
-                    break;
-                case CasterEmoteName:
-                    roleCollection = raid.RaidObject.Casters;
-                    break;
-                case HealerEmoteName:
-                    roleCollection = raid.RaidObject.Healers;
-                    break;
-                case TankEmoteName:
-                    roleCollection = raid.RaidObject.Tanks;
-                    break;
-                default:
-                    roleCollection = new HashSet<RaidParticipant>();
-                    break;
-            }
 
             if (!(reaction.User.Value is IGuildUser)) return;
-            var aliases = _epgpRepository.GetAliasesForUser(reaction.UserId);
-            if (!aliases.Any()) return;
-            var alias = aliases.FirstOrDefault(a => a.IsActive) ?? aliases.FirstOrDefault(a => a.IsPrimary) ?? aliases.First();
-            var participant = new RaidParticipant(reaction.UserId, alias.Class.ToWowClass()) { Alias = alias.Name, IsPrimaryAlias = alias.IsPrimary };
+            var alias = _aliasService.GetActiveAlias(reaction.UserId);
+            if (alias == null) return;
+            var participant = new RaidParticipant(reaction.UserId, alias.Class.ToWowClass())
+            {
+                Alias = alias.Name,
+                IsPrimaryAlias = alias.IsPrimary,
+                Role = reaction.Emote.Name.ParseRoleFromEmote()
+            };
             if (action == ReactionAction.Add)
             {
-
-                RemoveUser(raid.RaidObject.Melee, reaction.UserId);
-                RemoveUser(raid.RaidObject.Casters, reaction.UserId);
-                RemoveUser(raid.RaidObject.Ranged, reaction.UserId);
-                RemoveUser(raid.RaidObject.Healers, reaction.UserId);
-                RemoveUser(raid.RaidObject.Tanks, reaction.UserId);
-                roleCollection.Add(participant);
+                raid.RaidObject.Participants.AddOrUpdate(participant.Id, id => participant,
+                    (id, raidParticipant) => participant);
             }
             else if (action == ReactionAction.Remove)
             {
-                RemoveUser(roleCollection, reaction.UserId);
+                if (raid.RaidObject.Participants.TryGetValue(reaction.UserId, out var existingParticipant) &&
+                    existingParticipant.Role == participant.Role)
+                {
+                    raid.RaidObject.Participants.TryRemove(reaction.UserId, out _);
+                }
             }
-            var embed = CreateEmbed(raid.RaidObject);
+            var embed = CreateEmbed(raid.RaidObject, raid.ServerId);
             await raid.Message.ModifyAsync(opt => opt.Embed = embed);
         }
+
+        
 
         private async Task<bool> TryAddUser(ulong userId, IGuild guild)
         {
@@ -175,15 +144,20 @@ namespace BuzzBot.Discord.Services
             Remove
         }
 
-        public async Task<ulong> PostRaid(ReplyDelegate replyDelegate, EpgpRaid raidObject)
+        public async Task<ulong> PostRaid(IMessageChannel channel, EpgpRaid raidObject)
         {
-            var message = await replyDelegate("", false, CreateEmbed(raidObject), null);
-            var raidData = new RaidData(message, raidObject);
-            await message.AddReactionAsync(Emote.Parse(CasterEmote));
-            await message.AddReactionAsync(Emote.Parse(MeleeEmote));
-            await message.AddReactionAsync(Emote.Parse(RangedEmote));
-            await message.AddReactionAsync(Emote.Parse(TankEmote));
-            await message.AddReactionAsync(Emote.Parse(HealerEmote));
+            if (!(channel is IGuildChannel guildChannel))
+            {
+                throw new ArgumentException("Raids can only be posted to server text channels");
+            }
+            var guildId = guildChannel.GuildId; 
+            var message = await channel.SendMessageAsync("", false, CreateEmbed(raidObject, guildChannel.GuildId), null);
+            var raidData = new RaidData(message, raidObject, guildChannel.GuildId);
+            await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.CasterEmoteName)));
+            await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.MeleeEmoteName)));
+            await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.RangedEmoteName)));
+            await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.TankEmoteName)));
+            await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.HealerEmoteName)));
             await message.AddReactionAsync(new Emoji("❌"));
             AddRaid(raidData);
             return raidData.Id;
@@ -195,12 +169,11 @@ namespace BuzzBot.Discord.Services
             if (!_activeRaidMessages.ContainsKey(raidId))
                 throw new InvalidOperationException("No active raid message was found for kick operation.");
             var raid = _activeRaidMessages[raidId];
-            RemoveUser(raid.RaidObject.Melee, userId);
-            RemoveUser(raid.RaidObject.Casters, userId);
-            RemoveUser(raid.RaidObject.Ranged, userId);
-            RemoveUser(raid.RaidObject.Healers, userId);
-            RemoveUser(raid.RaidObject.Tanks, userId);
-            var embed = CreateEmbed(raid.RaidObject);
+            if (!raid.RaidObject.Participants.TryRemove(userId, out _))
+            {
+                throw new ArgumentException("No user by that name was found to kick");
+            }
+            var embed = CreateEmbed(raid.RaidObject, raid.ServerId);
             await raid.Message.ModifyAsync(opt => opt.Embed = embed);
         }
 
@@ -223,7 +196,7 @@ namespace BuzzBot.Discord.Services
             if (raidData.Started)
                 throw new InvalidOperationException("The raid has already started");
             var raidMonitor = _raidMonitors[raidId];
-            raidData.RaidObject.StartTime = DateTime.Now.ToEasternTime();
+            raidData.RaidObject.StartTime = DateTime.Now;
             raidMonitor.UpdateRaid(raidData);
         }
 
@@ -267,8 +240,14 @@ namespace BuzzBot.Discord.Services
             monitor.RemoveRaid(raidData);
         }
 
-        private Embed CreateEmbed(EpgpRaid raidData)
+        private Embed CreateEmbed(EpgpRaid raidData, ulong guildId)
         {
+            if (guildId == 0) throw new InvalidOperationException("Raid embed must be within a server channel");
+            var casterEmote = _emoteService.GetFullyQualifiedName(guildId, EmbedConstants.CasterEmoteName);
+            var meleeEmote = _emoteService.GetFullyQualifiedName(guildId, EmbedConstants.MeleeEmoteName);
+            var rangedEmote = _emoteService.GetFullyQualifiedName(guildId, EmbedConstants.RangedEmoteName);
+            var tankEmote = _emoteService.GetFullyQualifiedName(guildId, EmbedConstants.TankEmoteName);
+            var healerEmote = _emoteService.GetFullyQualifiedName(guildId, EmbedConstants.HealerEmoteName);
             var embed = new EmbedBuilder();
             embed
                 .WithTitle("__Raid Event__")
@@ -281,26 +260,35 @@ namespace BuzzBot.Discord.Services
 
                 .AddField("__Roster__", EmbedConstants.EmptySpace)
 
-                .AddField($"{CasterEmote} Casters ({raidData.Casters.Count})", BuildUserList(raidData.Casters), true)
-                .AddField($"{MeleeEmote} Melee ({raidData.Melee.Count})", BuildUserList(raidData.Melee), true)
-                .AddField($"{RangedEmote} Ranged ({raidData.Ranged.Count})", BuildUserList(raidData.Ranged), true)
-                .AddField($"{TankEmote} Tanks ({raidData.Tanks.Count})", BuildUserList(raidData.Tanks), true)
-                .AddField($"{HealerEmote} Healers ({raidData.Healers.Count})", BuildUserList(raidData.Healers), true)
+                .AddField($"{casterEmote} Casters ({GetParticipantCount(raidData.Participants.Values, Role.Caster)})", BuildUserList(raidData, Role.Caster, guildId), true)
+                .AddField($"{meleeEmote} Melee ({GetParticipantCount(raidData.Participants.Values, Role.Melee)})", BuildUserList(raidData, Role.Melee, guildId), true)
+                .AddField($"{rangedEmote} Ranged ({GetParticipantCount(raidData.Participants.Values, Role.Ranged)})", BuildUserList(raidData, Role.Ranged, guildId), true)
+                .AddField($"{tankEmote} Tanks ({GetParticipantCount(raidData.Participants.Values, Role.Tank)})", BuildUserList(raidData, Role.Tank, guildId), true)
+                .AddField($"{healerEmote} Healers ({GetParticipantCount(raidData.Participants.Values, Role.Healer)})", BuildUserList(raidData, Role.Healer, guildId), true)
                 .AddField(EmbedConstants.EmptySpace, EmbedConstants.EmptySpace, true)
                 .WithFooter((ftr) => ftr.WithText("\u200b\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tStarts"))
                 .WithTimestamp(raidData.StartTime);
             return embed.Build();
         }
-        private string BuildUserList(HashSet<RaidParticipant> userIdList)
+
+        private int GetParticipantCount(ICollection<RaidParticipant> participants, Role role)
         {
-            if (!userIdList.Any())
+            return participants.Count(p => p.Role == role);
+        }
+
+        private string BuildUserList(EpgpRaid raid, Role userRole, ulong guildId)
+        {
+            var participants = raid.Participants.Values;
+            if (participants.All(p => p.Role != userRole))
             {
                 return "None";
             }
             var returnSb = new StringBuilder();
-            foreach (var participant in userIdList)
+            foreach (var participant in participants.Where(p => p.Role == userRole))
             {
-                returnSb.AppendLine($"{_emoteDictionary[participant.WowClass]} {ParticipantString(participant)}");
+                var fullyQualifiedEmoteName =
+                    _emoteService.GetFullyQualifiedName(guildId, participant.WowClass.GetEmoteName());
+                returnSb.AppendLine($"{fullyQualifiedEmoteName} {ParticipantString(participant)}");
             }
 
             return returnSb.ToString();
@@ -313,15 +301,17 @@ namespace BuzzBot.Discord.Services
     }
     public class RaidData
     {
+        public ulong ServerId { get; }
         public IUserMessage Message { get; }
         public EpgpRaid RaidObject { get; }
         public ulong Id => Message.Id;
         public bool Started { get; set; }
 
-        public RaidData(IUserMessage message, EpgpRaid raidObject)
+        public RaidData(IUserMessage message, EpgpRaid raidObject, ulong serverId)
         {
             Message = message;
             RaidObject = raidObject;
+            ServerId = serverId;
         }
     }
     public delegate Task<IUserMessage> ReplyDelegate(string message, bool isTts, Embed embed, RequestOptions options);
