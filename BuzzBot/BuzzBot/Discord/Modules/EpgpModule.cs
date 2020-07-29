@@ -25,30 +25,31 @@ namespace BuzzBot.Discord.Modules
 {
 
     [Group(GroupName)]
-    public class EpgpModule : ModuleBase<SocketCommandContext>
+    public class EpgpModule : BuzzBotModuleBase<SocketCommandContext>
     {
         private readonly EpgpRepository _repository;
-        private readonly PriorityReportingService _priorityReportingService;
-        private readonly QueryService _queryService;
+        private readonly IPriorityReportingService _priorityReportingService;
+        private readonly IQueryService _queryService;
         private readonly IEpgpService _epgpService;
-        private readonly AuditService _auditService;
+        private readonly IAuditService _auditService;
         private readonly ItemRepository _itemRepository;
-        private readonly EpgpCalculator _epgpCalculator;
-        private IEpgpConfigurationService _epgpConfigurationService;
-        private PageService _pageService;
-        private DocumentationService _documentationService;
+        private readonly IEpgpCalculator _epgpCalculator;
+        private readonly IEpgpConfigurationService _epgpConfigurationService;
+        private readonly IPageService _pageService;
+        private readonly IDocumentationService _documentationService;
         public const string GroupName = "epgp";
 
         public EpgpModule(
             EpgpRepository repository,
-            PriorityReportingService priorityReportingService,
-            QueryService queryService,
+            IPriorityReportingService priorityReportingService,
+            IQueryService queryService,
             IEpgpService epgpService,
-            AuditService auditService,
+            IAuditService auditService,
             ItemRepository itemRepository,
-            EpgpCalculator epgpCalculator,
+            IEpgpCalculator epgpCalculator,
             IEpgpConfigurationService epgpConfigurationService,
-            PageService pageService, DocumentationService documentationService)
+            IPageService pageService, 
+            IDocumentationService documentationService)
         {
             _repository = repository;
             _priorityReportingService = priorityReportingService;
@@ -210,18 +211,28 @@ namespace BuzzBot.Discord.Modules
         [Command("audit")]
         public async Task Audit(string aliasName)
         {
-            await _auditService.Audit(aliasName, await Context.User.GetOrCreateDMChannelAsync());
+            // ReSharper disable once RedundantAssignment
+            IMessageChannel channel = await GetUserChannel();
+#if DEBUG
+            channel = Context.Channel;
+#endif
+            await _auditService.Audit(aliasName, channel);
         }
 
 
         [Command("help")]
         [Alias("?")]
-        public async Task Help() => await _documentationService.SendDocumentation(await Context.User.GetOrCreateDMChannelAsync(), GroupName, Context.User.Id);
+        public async Task Help() => await _documentationService.SendDocumentation(await GetUserChannel(), GroupName, Context.User.Id);
         [Command("pr")]
         [Summary("DMs the guilds priority list to requesting user")]
         public async Task PrintPriority()
         {
-            await _priorityReportingService.ReportAll(await Context.User.GetOrCreateDMChannelAsync());
+            // ReSharper disable once RedundantAssignment
+            IMessageChannel channel = await Context.User.GetOrCreateDMChannelAsync();
+#if DEBUG
+            channel = Context.Channel;
+#endif
+            await _priorityReportingService.ReportAll(await GetUserChannel());
         }
 
         [Command("pr")]
@@ -229,7 +240,7 @@ namespace BuzzBot.Discord.Modules
         [Remarks(@"pr Azar Triqueta Fragrock")]
         public async Task PrintPriority(params string[] userNames)
         {
-            await _priorityReportingService.ReportAliases(await Context.User.GetOrCreateDMChannelAsync(), userNames);
+            await _priorityReportingService.ReportAliases(await GetUserChannel(), userNames);
         }
 
         [Command("pr")]
@@ -259,7 +270,7 @@ namespace BuzzBot.Discord.Modules
         public async Task AssignEffortPoints(string alias, int value)
         {
             _epgpService.Ep(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
-            var dmChannel = await Context.User.GetOrCreateDMChannelAsync();
+            var dmChannel = await GetUserChannel();
             await dmChannel.SendMessageAsync($"{value} EP successfully granted to {alias}");
         }
 
@@ -275,7 +286,7 @@ namespace BuzzBot.Discord.Modules
         public async Task AssignGearPoints(string alias, int value)
         {
             _epgpService.Gp(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
-            var dmChannel = await Context.User.GetOrCreateDMChannelAsync();
+            var dmChannel = await GetUserChannel();
             await dmChannel.SendMessageAsync($"{value} GP successfully granted to {alias}");
         }
 

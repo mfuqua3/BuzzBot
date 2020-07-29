@@ -7,12 +7,17 @@ using Discord;
 
 namespace BuzzBot.Discord.Services
 {
-    public class AuditService
+    public interface IAuditService
     {
-        private readonly PageService _pageService;
+        Task Audit(string aliasId, IMessageChannel messageChannel);
+    }
+
+    public class AuditService : IAuditService
+    {
+        private readonly IPageService _pageService;
         private readonly EpgpRepository _epgpRepository;
 
-        public AuditService(PageService pageService, EpgpRepository epgpRepository)
+        public AuditService(IPageService pageService, EpgpRepository epgpRepository)
         {
             _pageService = pageService;
             _epgpRepository = epgpRepository;

@@ -7,13 +7,13 @@ using Discord.Commands;
 
 namespace BuzzBot.Discord.Services
 {
-    public class DocumentationService
+    public class DocumentationService : IDocumentationService
     {
         private readonly CommandService _commandService;
-        private readonly AdministrationService _administrationService;
-        private readonly PageService _pageService;
+        private readonly IAdministrationService _administrationService;
+        private readonly IPageService _pageService;
 
-        public DocumentationService(CommandService commandService, AdministrationService administrationService, PageService pageService)
+        public DocumentationService(CommandService commandService, IAdministrationService administrationService, IPageService pageService)
         {
             _commandService = commandService;
             _administrationService = administrationService;

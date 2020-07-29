@@ -13,23 +13,23 @@ using Discord.Commands;
 namespace BuzzBot.Discord.Modules
 {
     [Group(GroupName)]
-    public class BankModule : ModuleBase<SocketCommandContext>
+    public class BankModule : BuzzBotModuleBase<SocketCommandContext>
     {
         private readonly ClassicGuildBankClient _client;
         private readonly CommandService _commandService;
         private readonly ItemRequestService _itemRequestService;
-        private readonly AdministrationService _administrationService;
+        private readonly IAdministrationService _administrationService;
         private readonly GuildBankRepository _bankRepository;
-        private readonly PageService _pageService;
-        private readonly DocumentationService _documentationService;
+        private readonly IPageService _pageService;
+        private readonly IDocumentationService _documentationService;
         public const string GroupName = "bank";
         public BankModule(
             ClassicGuildBankClient client, 
             CommandService commandService, 
-            ItemRequestService itemRequestService, 
-            AdministrationService administrationService, 
+            ItemRequestService itemRequestService,
+            IAdministrationService administrationService, 
             GuildBankRepository bankRepository,
-            PageService pageService, DocumentationService documentationService)
+            IPageService pageService, IDocumentationService documentationService)
         {
             _client = client;
             _commandService = commandService;
@@ -75,7 +75,7 @@ namespace BuzzBot.Discord.Modules
             }
 
             var format = pageBuilder.Build();
-            await _pageService.SendPages(await Context.User.GetOrCreateDMChannelAsync(), $"{format.HeaderLine}\n{format.HorizontalRule}",
+            await _pageService.SendPages(await GetUserChannel(), $"{format.HeaderLine}\n{format.HorizontalRule}",
                 format.ContentLines.ToArray());
         }
 
@@ -88,7 +88,7 @@ namespace BuzzBot.Discord.Modules
 
         [Command("help")]
         [Alias("?")]
-        public async Task Help() => await _documentationService.SendDocumentation(await Context.User.GetOrCreateDMChannelAsync(), GroupName, Context.User.Id);
+        public async Task Help() => await _documentationService.SendDocumentation(await GetUserChannel(), GroupName, Context.User.Id);
 
         [Command("search")]
         [Summary("Searches the guild bank for the specified item")]

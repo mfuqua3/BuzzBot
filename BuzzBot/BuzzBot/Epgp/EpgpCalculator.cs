@@ -4,7 +4,12 @@ using BuzzBotData.Data;
 
 namespace BuzzBot.Epgp
 {
-    public class EpgpCalculator
+    public interface IEpgpCalculator
+    {
+        double Calculate(Item item, bool isHunter, bool isOffhand);
+    }
+
+    public class EpgpCalculator : IEpgpCalculator
     {
         public double Calculate(Item item, bool isHunter, bool isOffhand)
         {
