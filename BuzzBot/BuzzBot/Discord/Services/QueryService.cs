@@ -11,7 +11,13 @@ using Discord.WebSocket;
 
 namespace BuzzBot.Discord.Services
 {
-    public class QueryService
+    public interface IQueryService
+    {
+        Task<int> SendOptionSelectQuery<T>(string query, List<T> options, Func<T, string> optionQueryBuilder, IMessageChannel channel, CancellationToken token);
+        Task SendQuery(string queryString, IMessageChannel channel, Func<Task> onConfirm, Func<Task> onCancel);
+    }
+
+    public class QueryService : IQueryService
     {
         public const string Confirm = @"✔️";
         public const string Cancel = @"❌";

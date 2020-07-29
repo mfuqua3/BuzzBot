@@ -11,9 +11,9 @@ namespace BuzzBot.Discord.Modules
     public class InfoModule : ModuleBase<SocketCommandContext>
     {
         private readonly EpgpRepository _epgpRepository;
-        private readonly PageService _pageService;
+        private readonly IPageService _pageService;
 
-        public InfoModule(EpgpRepository epgpRepository, PageService pageService)
+        public InfoModule(EpgpRepository epgpRepository, IPageService pageService)
         {
             _epgpRepository = epgpRepository;
             _pageService = pageService;

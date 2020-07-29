@@ -8,9 +8,9 @@ namespace BuzzBot.Discord.Modules
 {
     public class AdminModule:ModuleBase<SocketCommandContext>
     {
-        private readonly AdministrationService _administrationService;
+        private readonly IAdministrationService _administrationService;
 
-        public AdminModule(AdministrationService administrationService)
+        public AdminModule(IAdministrationService administrationService)
         {
             _administrationService = administrationService;
         }
