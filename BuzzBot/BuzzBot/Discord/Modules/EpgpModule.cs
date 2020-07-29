@@ -274,9 +274,16 @@ namespace BuzzBot.Discord.Modules
         }
 
         [Command("ep")]
+        [Summary("Grants EP to the user")]
+        [Remarks("ep Azar 10")]
         [RequiresBotAdmin]
-        public async Task AssignEffortPoints(IGuildUser user, int value) =>
-            await AssignEffortPoints(user.GetAliasName(), value);
+        public async Task AssignEffortPoints(IGuildUser user, int value)
+        {
+            var alias = _aliasService.GetActiveAlias(user.Id);
+            _epgpService.Ep(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
+            var dmChannel = await GetUserChannel();
+            await dmChannel.SendMessageAsync($"{value} EP successfully granted to {GetAliasString(alias)}");
+        }
 
         [Command("gp")]
         [Summary("Grants GP to the user")]

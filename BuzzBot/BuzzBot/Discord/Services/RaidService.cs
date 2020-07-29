@@ -159,7 +159,7 @@ namespace BuzzBot.Discord.Services
             await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.TankEmoteName)));
             await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.HealerEmoteName)));
             await message.AddReactionAsync(new Emoji("❌"));
-            AddRaid(raidData);
+            await AddRaid(raidData);
             return raidData.Id;
         }
 
@@ -220,24 +220,32 @@ namespace BuzzBot.Discord.Services
             raidMonitor.RemoveRaid(raidData);
         }
 
-        private void AddRaid(RaidData raidData)
+        private async Task AddRaid(RaidData raidData)
         {
             _activeRaidMessages.Add(raidData.Id, raidData);
-            var raidMonitor = _raidMonitorFactory.GetNew(() => RemoveRaid(raidData));
+            var raidMonitor = _raidMonitorFactory.GetNew(async () => await RemoveRaid(raidData));
             raidMonitor.AddRaid(raidData);
             _raidMonitors.Add(raidData.Id, raidMonitor);
             while (_activeRaidMessages.Count > MaxConcurrentRaids)
             {
-                RemoveRaid(_activeRaidMessages.First().Value);
+                await RemoveRaid(_activeRaidMessages.First().Value);
             }
         }
 
-        private void RemoveRaid(RaidData raidData)
+        private async Task RemoveRaid(RaidData raidData)
         {
             _activeRaidMessages.Remove(raidData.Id);
             if (!_raidMonitors.TryGetValue(raidData.Id, out var monitor)) return;
             _raidMonitors.Remove(raidData.Id);
             monitor.RemoveRaid(raidData);
+            if (raidData.RaidObject.Participants.Values.All(p => p.IsPrimaryAlias)) return;
+            foreach (var participant in raidData.RaidObject.Participants.Values)
+            {
+                if (participant.IsPrimaryAlias) continue;
+                _aliasService.SetActiveAlias(participant.Id, _aliasService.GetPrimaryAlias(participant.Id).Name);
+            }
+
+            await raidData.Message.Channel.SendMessageAsync("All users have been reset to their primary alias");
         }
 
         private Embed CreateEmbed(EpgpRaid raidData, ulong guildId)
