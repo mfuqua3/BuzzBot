@@ -19,13 +19,25 @@ namespace BuzzBotData.Repositories
 
         public void AddOrUpdateGuild(Guild guild)
         {
+            var existingGuild = GetGuild(guild.Id);
+            foreach (var character in existingGuild.Characters)
+            {
+                foreach (var bag in character.Bags)
+                {
+                    foreach (var bagSlot in bag.BagSlots)
+                    {
+                        _dbContext.BagSlots.Remove(bagSlot);
+                    }
+
+                    _dbContext.Bags.Remove(bag);
+                }
+
+                _dbContext.Remove(character);
+            }
+
+            _dbContext.Guilds.Remove(existingGuild);
             var characters = guild.Characters;
             guild.Characters = null;
-            var existingGuild = _dbContext.Guilds.FirstOrDefault(g => g.Id == guild.Id);
-            if (existingGuild != null)
-            {
-                _dbContext.Guilds.Remove(existingGuild);
-            }
 
             _dbContext.Guilds.Add(guild);
             Save();
@@ -72,6 +84,19 @@ namespace BuzzBotData.Repositories
 
             }
             Save();
+        }
+
+        public Guild GetGuild(Guid guildId)
+        {
+            return _dbContext.Guilds
+                .Include(guild => guild.Characters)
+                .ThenInclude(character => character.Bags)
+                .ThenInclude(bag => bag.BagSlots)
+                .ThenInclude(bagSlot => bagSlot.Item)
+                .Include(guild => guild.Characters)
+                .ThenInclude(character => character.Bags)
+                .ThenInclude(bag => bag.BagItem)
+                .FirstOrDefault(g => g.Id == guildId);
         }
 
         public IEnumerable<Character> GetCharacters()
