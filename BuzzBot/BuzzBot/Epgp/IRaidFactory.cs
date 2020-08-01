@@ -1,9 +1,10 @@
 ﻿using System;
+using System.Threading.Tasks;
 
 namespace BuzzBot.Epgp
 {
     public interface IRaidFactory
     {
-        EpgpRaid CreateNew(string templateId);
+        Task<EpgpRaid> CreateNew(string templateId);
     }
 }

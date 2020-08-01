@@ -32,13 +32,14 @@ namespace BuzzBot.Discord.Modules
         private readonly IQueryService _queryService;
         private readonly IEpgpService _epgpService;
         private readonly IAuditService _auditService;
-        private readonly ItemRepository _itemRepository;
         private readonly IEpgpCalculator _epgpCalculator;
         private readonly IEpgpConfigurationService _epgpConfigurationService;
         private readonly IPageService _pageService;
         private readonly IDocumentationService _documentationService;
-        private IEmoteService _emoteService;
-        private IAliasService _aliasService;
+        private readonly IEmoteService _emoteService;
+        private readonly IAliasService _aliasService;
+        private readonly IItemService _itemService;
+        private readonly IRaidService _raidService;
         public const string GroupName = "epgp";
 
         public EpgpModule(
@@ -47,26 +48,54 @@ namespace BuzzBot.Discord.Modules
             IQueryService queryService,
             IEpgpService epgpService,
             IAuditService auditService,
-            ItemRepository itemRepository,
             IEpgpCalculator epgpCalculator,
             IEpgpConfigurationService epgpConfigurationService,
             IPageService pageService,
             IDocumentationService documentationService,
             IEmoteService emoteService,
-            IAliasService aliasService)
+            IAliasService aliasService,
+            IItemService itemService,
+            IRaidService raidService)
         {
             _repository = repository;
             _priorityReportingService = priorityReportingService;
             _queryService = queryService;
             _epgpService = epgpService;
             _auditService = auditService;
-            _itemRepository = itemRepository;
             _epgpCalculator = epgpCalculator;
             _epgpConfigurationService = epgpConfigurationService;
             _pageService = pageService;
             _documentationService = documentationService;
             _emoteService = emoteService;
             _aliasService = aliasService;
+            _itemService = itemService;
+            _raidService = raidService;
+        }
+
+        [Priority(0)]
+        [Command("rolls", RunMode = RunMode.Async)]
+        [Summary("Awards an item that has been rolled off in the game")]
+        [Remarks("rolls Azar Earthfury Bracers")]
+        public async Task AwardRoll(IGuildUser user, [Remainder] string itemQueryString)
+        {
+            EpgpRaid raid;
+            try
+            {
+                raid = _raidService.GetRaid();
+            }
+            catch (InvalidOperationException)
+            {
+                await ReplyAsync("No active raid could be found.");
+                return;
+            }
+            var item = await _itemService.TryGetItem(itemQueryString, Context.Channel);
+            if (item == null) return;
+            var gp = _epgpCalculator.ConvertGpFromGold(raid.NexusCrystalValue) * 2;
+            var activeAlias = _aliasService.GetActiveAlias(user.Id);
+            _epgpService.Gp(activeAlias, gp, $"[Roll] {itemQueryString}", TransactionType.GpFromGear);
+            var embed = CreateItemEmbed(item, gp);
+            var userString = activeAlias.IsPrimary ? $"<@{user.Id}>" : GetAliasString(activeAlias);
+            await ReplyAsync($"Assigning to {userString}", false, embed);
         }
 
         [Command("decay")]
@@ -100,25 +129,9 @@ namespace BuzzBot.Discord.Modules
             var isOffhand = queryString.EndsWith(" -oh");
             if (isOffhand)
                 queryString = queryString.Substring(0, queryString.Length - 4);
-            var items = _itemRepository.GetItems(queryString).OrderByDescending(itm => itm.ItemLevel).ToList();
-            if (items.Count == 0)
-            {
-                await ReplyAsync($"\"{queryString}\" returned no results.");
-                return;
-            }
-            if (items.Count == 1)
-            {
-                await GiveItemGearPoints(user, items.First(), isOffhand);
-                return;
-            }
-
-            var result = await _queryService.SendOptionSelectQuery(
-                $"\"{queryString}\" yielded multiple results. Please select below",
-                items,
-                (itm) => itm.Name,
-                Context.Channel, CancellationToken.None);
-            if (result == -1) return;
-            await GiveItemGearPoints(user, items[result], isOffhand);
+            var item = await _itemService.TryGetItem(queryString, Context.Channel);
+            if (item == null) return;
+            await GiveItemGearPoints(user, item, isOffhand);
         }
 
         [Command("cost", RunMode = RunMode.Async)]
@@ -128,30 +141,19 @@ namespace BuzzBot.Discord.Modules
             var isOffhand = queryString.EndsWith(" -oh");
             if (isHunter || isOffhand)
                 queryString = queryString.Substring(0, queryString.Length - 4);
-
-            var items = _itemRepository.GetItems(queryString).OrderByDescending(itm => itm.ItemLevel).ToList();
-            if (items.Count == 0)
-            {
-                await ReplyAsync($"\"{queryString}\" returned no results.");
-                return;
-            }
-            if (items.Count == 1)
-            {
-                await ReplyAsync("", false, CreateItemEmbed(items.First(), isHunter, isOffhand, out _));
-                return;
-            }
-            var result = await _queryService.SendOptionSelectQuery(
-                $"\"{queryString}\" yielded multiple results. Please select below",
-                items,
-                (itm) => itm.Name,
-                Context.Channel, CancellationToken.None);
-            if (result == -1) return;
-            await ReplyAsync("", false, CreateItemEmbed(items[result], isHunter, isOffhand, out _));
+            var item = await _itemService.TryGetItem(queryString, Context.Channel);
+            if (item == null) return;
+            await ReplyAsync("", false, CreateItemEmbed(item, isHunter, isOffhand, out _));
         }
 
         private Embed CreateItemEmbed(Item item, bool isHunter, bool isOffhand, out double gp)
         {
-            gp = _epgpCalculator.Calculate(item, isHunter, isOffhand);
+            gp = _epgpCalculator.CalculateItem(item, isHunter, isOffhand);
+            return CreateItemEmbed(item, gp);
+        }
+
+        private Embed CreateItemEmbed(Item item, double gp)
+        {
             var embed = new EmbedBuilder();
             embed.WithTitle($"{item.Name} : {gp:F0} GP");
             embed.WithImageUrl($"http://www.korkd.com/wow_img/{item.Id}.png");
@@ -161,10 +163,11 @@ namespace BuzzBot.Discord.Modules
         private async Task GiveItemGearPoints(IGuildUser user, Item item, bool isOffhand)
         {
             var activeAlias = _aliasService.GetActiveAlias(user.Id);
-            var embed = CreateItemEmbed(item, activeAlias.Class == Class.Hunter, isOffhand, out var value);
+            var gp = _epgpCalculator.CalculateItem(item, activeAlias.Class == Class.Hunter, isOffhand);
+            var embed = CreateItemEmbed(item, gp);
             var userString = activeAlias.IsPrimary ? $"<@{user.Id}>" : GetAliasString(activeAlias);
             await ReplyAsync($"Assigning to {userString}", false, embed);
-            _epgpService.Gp(activeAlias, (int)Math.Round(value), item.Name, TransactionType.GpFromGear);
+            _epgpService.Gp(activeAlias, (int)Math.Round(gp), $"[Claim] {item.Name}", TransactionType.GpFromGear);
         }
 
         [Command("correct")]
@@ -225,12 +228,12 @@ namespace BuzzBot.Discord.Modules
             var channel = await GetUserChannel();
             var aliases = _repository.GetAliases().OrderByDescending(a => (double)a.EffortPoints / a.GearPoints).ToList();
             using var stream = new MemoryStream() { Capacity = 10240 };
-            using var textWriter = new StreamWriter(stream){AutoFlush = true};
+            using var textWriter = new StreamWriter(stream) { AutoFlush = true };
             using var writer = new CsvWriter(textWriter, CultureInfo.CurrentCulture);
             {
                 //writer.WriteHeader<EpgpCsvResult>();
                 var records = aliases.Select(a => new EpgpCsvRecord()
-                { Name = a.Name, EP = a.EffortPoints, GP = a.GearPoints, PR = ((double)a.EffortPoints/a.GearPoints).ToString("F2")});
+                { Name = a.Name, EP = a.EffortPoints, GP = a.GearPoints, PR = ((double)a.EffortPoints / a.GearPoints).ToString("F2") });
                 await writer.WriteRecordsAsync(records);
             }
             var data = stream.ToArray();
@@ -278,6 +281,7 @@ namespace BuzzBot.Discord.Modules
         [Command("ep")]
         [Summary("Grants EP to the user")]
         [Remarks("ep Azar 10")]
+        [Priority(0)]
         [RequiresBotAdmin]
         public async Task AssignEffortPoints(string alias, int value)
         {
@@ -301,6 +305,7 @@ namespace BuzzBot.Discord.Modules
         [Command("gp")]
         [Summary("Grants GP to the user")]
         [Remarks("gp Azar 10")]
+        [Priority(0)]
         [RequiresBotAdmin]
         public async Task AssignGearPoints(string alias, int value)
         {

@@ -25,6 +25,7 @@ namespace BuzzBot.Discord.Services
         private readonly IEpgpService _epgpService;
         private readonly IAliasService _aliasService;
         private readonly IEmoteService _emoteService;
+        private IEpgpCalculator _epgpCalculator;
 
         public RaidService(
             DiscordSocketClient client,
@@ -33,7 +34,8 @@ namespace BuzzBot.Discord.Services
             IEpgpConfigurationService epgpConfigurationService,
             IEpgpService epgpService,
             IAliasService aliasService,
-            IEmoteService emoteService)
+            IEmoteService emoteService, 
+            IEpgpCalculator epgpCalculator)
         {
             _client = client;
             _epgpRepository = epgpRepository;
@@ -41,6 +43,7 @@ namespace BuzzBot.Discord.Services
             _epgpService = epgpService;
             _aliasService = aliasService;
             _emoteService = emoteService;
+            _epgpCalculator = epgpCalculator;
             _raidMonitorFactory = raidMonitorFactory;
             client.ReactionAdded += ReactionAdded;
             client.ReactionRemoved += ReactionRemoved;
@@ -163,6 +166,12 @@ namespace BuzzBot.Discord.Services
             return raidData.Id;
         }
 
+        public EpgpRaid GetRaid(ulong raidId = 0)
+        {
+            var raidData = GetRaidData(raidId);
+            return raidData.RaidObject;
+        }
+
         public async Task KickUser(ulong userId, ulong raidId = 0)
         {
             if (raidId == 0) raidId = _activeRaidMessages.Keys.LastOrDefault();
@@ -189,34 +198,35 @@ namespace BuzzBot.Discord.Services
 
         public void Start(ulong raidId = 0)
         {
-            if (raidId == 0) raidId = _activeRaidMessages.Keys.LastOrDefault();
-            if (!_activeRaidMessages.ContainsKey(raidId) || !_raidMonitors.ContainsKey(raidId))
-                throw new InvalidOperationException("No active raid message was found to start.");
-            var raidData = _activeRaidMessages[raidId];
+            var raidData = GetRaidData(raidId);
             if (raidData.Started)
                 throw new InvalidOperationException("The raid has already started");
-            var raidMonitor = _raidMonitors[raidId];
+            var raidMonitor = _raidMonitors[raidData.Id];
             raidData.RaidObject.StartTime = DateTime.Now;
             raidMonitor.UpdateRaid(raidData);
         }
 
-        public void Extend(TimeSpan extend, ulong raidId = 0)
+        private RaidData GetRaidData(ulong raidId)
         {
             if (raidId == 0) raidId = _activeRaidMessages.Keys.LastOrDefault();
             if (!_activeRaidMessages.ContainsKey(raidId) || !_raidMonitors.ContainsKey(raidId))
-                throw new InvalidOperationException("No active raid message was found to extend.");
-            var raidData = _activeRaidMessages[raidId];
+                throw new InvalidOperationException("No active raid message was found to start.");
+            return _activeRaidMessages[raidId];
+        }
+
+        public void Extend(TimeSpan extend, ulong raidId = 0)
+        {
+
+            var raidData = GetRaidData(raidId);
             raidData.RaidObject.Duration += extend;
             _raidMonitors[raidId].UpdateRaid(raidData);
         }
 
         public void End(ulong raidId = 0)
         {
-            if (raidId == 0) raidId = _activeRaidMessages.Keys.LastOrDefault();
-            if (!_activeRaidMessages.ContainsKey(raidId) || !_raidMonitors.ContainsKey(raidId))
-                throw new InvalidOperationException("No active raid message was found to extend.");
-            var raidData = _activeRaidMessages[raidId];
-            var raidMonitor = _raidMonitors[raidId];
+
+            var raidData = GetRaidData(raidId);
+            var raidMonitor = _raidMonitors[raidData.Id];
             raidMonitor.RemoveRaid(raidData);
         }
 
@@ -256,6 +266,7 @@ namespace BuzzBot.Discord.Services
             var rangedEmote = _emoteService.GetFullyQualifiedName(guildId, EmbedConstants.RangedEmoteName);
             var tankEmote = _emoteService.GetFullyQualifiedName(guildId, EmbedConstants.TankEmoteName);
             var healerEmote = _emoteService.GetFullyQualifiedName(guildId, EmbedConstants.HealerEmoteName);
+            var nexusCrystalString = raidData.NexusCrystalValue.ToGoldString();
             var embed = new EmbedBuilder();
             embed
                 .WithTitle("__Raid Event__")
@@ -274,6 +285,10 @@ namespace BuzzBot.Discord.Services
                 .AddField($"{tankEmote} Tanks ({GetParticipantCount(raidData.Participants.Values, Role.Tank)})", BuildUserList(raidData, Role.Tank, guildId), true)
                 .AddField($"{healerEmote} Healers ({GetParticipantCount(raidData.Participants.Values, Role.Healer)})", BuildUserList(raidData, Role.Healer, guildId), true)
                 .AddField(EmbedConstants.EmptySpace, EmbedConstants.EmptySpace, true)
+
+                .AddField("__Notes__",
+                    $"💎 Nexus Crystal Price: {nexusCrystalString}\n" +
+                    $"🎲 Rolled Item GP Cost: {_epgpCalculator.ConvertGpFromGold(raidData.NexusCrystalValue)*2} GP")
                 .WithFooter((ftr) => ftr.WithText("\u200b\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tStarts"))
                 .WithTimestamp(raidData.StartTime);
             return embed.Build();
@@ -307,20 +322,6 @@ namespace BuzzBot.Discord.Services
             return participant.IsPrimaryAlias ? $"<@{participant.Id}>" : participant.Alias;
         }
     }
-    public class RaidData
-    {
-        public ulong ServerId { get; }
-        public IUserMessage Message { get; }
-        public EpgpRaid RaidObject { get; }
-        public ulong Id => Message.Id;
-        public bool Started { get; set; }
 
-        public RaidData(IUserMessage message, EpgpRaid raidObject, ulong serverId)
-        {
-            Message = message;
-            RaidObject = raidObject;
-            ServerId = serverId;
-        }
-    }
     public delegate Task<IUserMessage> ReplyDelegate(string message, bool isTts, Embed embed, RequestOptions options);
 }

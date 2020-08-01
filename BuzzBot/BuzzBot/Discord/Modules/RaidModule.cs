@@ -49,7 +49,7 @@ namespace BuzzBot.Discord.Modules
             EpgpRaid raid;
             try
             {
-                raid = _raidFactory.CreateNew(templateId);
+                raid = await _raidFactory.CreateNew(templateId);
 
             }
             catch (ArgumentException ex)
