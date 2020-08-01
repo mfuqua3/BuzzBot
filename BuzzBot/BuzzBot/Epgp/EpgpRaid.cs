@@ -8,6 +8,7 @@ namespace BuzzBot.Epgp
 {
     public class EpgpRaid
     {
+        public int NexusCrystalValue { get; set; }
         public bool Started { get; set; }
         public DateTime StartTime { get; set; }
         public int StartBonus { get; set; }

@@ -6,12 +6,19 @@ namespace BuzzBot.Epgp
 {
     public interface IEpgpCalculator
     {
-        double Calculate(Item item, bool isHunter, bool isOffhand);
+        int ConvertGpFromGold(int totalCopper);
+        double CalculateItem(Item item, bool isHunter, bool isOffhand);
     }
 
     public class EpgpCalculator : IEpgpCalculator
     {
-        public double Calculate(Item item, bool isHunter, bool isOffhand)
+        private const int CopperPerGp = 100000;
+        public int ConvertGpFromGold(int totalCopper)
+        {
+            return (int) Math.Ceiling((double) totalCopper / CopperPerGp);
+        }
+
+        public double CalculateItem(Item item, bool isHunter, bool isOffhand)
         {
             var iLevel = item.ItemLevel;
             var quality = item.QualityValue;

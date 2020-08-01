@@ -8,6 +8,7 @@ namespace BuzzBot.Discord.Services
     public interface IRaidService
     {
         Task<ulong> PostRaid(IMessageChannel messageChannel, EpgpRaid raidObject);
+        EpgpRaid GetRaid(ulong raidId = 0);
         void Start(ulong raidId = 0);
         void Extend(TimeSpan extend, ulong raidId = 0);
         void End(ulong raidId = 0);
