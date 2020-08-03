@@ -7,52 +7,46 @@ using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Utility;
 using BuzzBot.Epgp;
 using BuzzBotData.Data;
-using BuzzBotData.Repositories;
 using Discord;
 using Discord.WebSocket;
 
 namespace BuzzBot.Discord.Services
 {
-    public class RaidService : IRaidService
+    public class RaidService : IRaidService, IDisposable
     {
-        private readonly DiscordSocketClient _client;
+        private const int MaxConcurrentRaids = 1; //Only handles one raid in current version
+        private DiscordSocketClient _client;
         private readonly EpgpRepository _epgpRepository;
         private readonly IRaidMonitorFactory _raidMonitorFactory;
-        private const int MaxConcurrentRaids = 1; //Only handles one raid in current version
-        private readonly Dictionary<ulong, RaidData> _activeRaidMessages = new Dictionary<ulong, RaidData>();
-        private readonly Dictionary<ulong, EpgpRaidMonitor> _raidMonitors = new Dictionary<ulong, EpgpRaidMonitor>();
-        private readonly IEpgpConfigurationService _epgpConfigurationService;
-        private readonly IEpgpService _epgpService;
         private readonly IAliasService _aliasService;
         private readonly IEmoteService _emoteService;
-        private IEpgpCalculator _epgpCalculator;
+        private readonly IEpgpCalculator _epgpCalculator;
+        private readonly IUserService _userService;
+        private readonly IRaidRepository _raidRepository;
 
         public RaidService(
             DiscordSocketClient client,
             IRaidMonitorFactory raidMonitorFactory,
             EpgpRepository epgpRepository,
-            IEpgpConfigurationService epgpConfigurationService,
-            IEpgpService epgpService,
             IAliasService aliasService,
-            IEmoteService emoteService, 
-            IEpgpCalculator epgpCalculator)
+            IEmoteService emoteService,
+            IEpgpCalculator epgpCalculator,
+            IUserService userService, 
+            IRaidRepository raidRepository)
         {
             _client = client;
             _epgpRepository = epgpRepository;
-            _epgpConfigurationService = epgpConfigurationService;
-            _epgpService = epgpService;
             _aliasService = aliasService;
             _emoteService = emoteService;
             _epgpCalculator = epgpCalculator;
+            _userService = userService;
+            _raidRepository = raidRepository;
             _raidMonitorFactory = raidMonitorFactory;
-            client.ReactionAdded += ReactionAdded;
-            client.ReactionRemoved += ReactionRemoved;
-            _aliasService.ActiveAliasChanged += ActiveAliasChanged;
         }
 
         private async void ActiveAliasChanged(object sender, AliasChangeEventArgs e)
         {
-            foreach (var raid in _activeRaidMessages.Values.ToList())
+            foreach (var raid in _raidRepository.GetRaids())
             {
                 if (!raid.RaidObject.Participants.ContainsKey(e.User)) continue;
                 var participant = raid.RaidObject.Participants[e.User];
@@ -75,10 +69,10 @@ namespace BuzzBot.Discord.Services
         private async Task ReactionManipulated(SocketReaction reaction, ReactionAction action)
         {
             if (reaction.User.Value.IsBot) return;
-            if (!_activeRaidMessages.ContainsKey(reaction.MessageId)) return;
+            if (!_raidRepository.Contains(reaction.MessageId)) return;
             if (!_epgpRepository.ContainsUser(reaction.UserId) &&
-                !(await TryAddUser(reaction.UserId, (reaction.Channel as IGuildChannel)?.Guild))) return;
-            var raid = _activeRaidMessages[reaction.MessageId];
+                !(await _userService.TryAddUser(reaction.UserId, (reaction.Channel as IGuildChannel)?.Guild))) return;
+            var raid = _raidRepository.GetRaid(reaction.MessageId);
 
             if (!(reaction.User.Value is IGuildUser)) return;
             var alias = _aliasService.GetActiveAlias(reaction.UserId);
@@ -106,64 +100,39 @@ namespace BuzzBot.Discord.Services
             await raid.Message.ModifyAsync(opt => opt.Embed = embed);
         }
 
-        
-
-        private async Task<bool> TryAddUser(ulong userId, IGuild guild)
-        {
-            if (guild == null) return false;
-            var config = _epgpConfigurationService.GetConfiguration();
-            var ep = config.EpMinimum;
-            var gp = config.GpMinimum;
-            var guildUser = await guild.GetUserAsync(userId);
-            if (guildUser == null) return false;
-            var userClass = guildUser.GetClass();
-            if (userClass == WowClass.Unknown) return false;
-            try
-            {
-                var alias = new EpgpAlias
-                {
-                    UserId = userId,
-                    Class = userClass.ToDomainClass(),
-                    EffortPoints = 0,
-                    GearPoints = 0,
-                    IsPrimary = true,
-                    Name = guildUser.GetAliasName(),
-                    Id = Guid.NewGuid()
-                };
-                _epgpRepository.AddGuildUser(userId);
-                _epgpRepository.AddAlias(alias);
-                _epgpService.Set(alias.Name, ep, gp, "User initialization");
-                return true;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-        }
-
         private enum ReactionAction
         {
             Add,
             Remove
         }
 
-        public async Task<ulong> PostRaid(IMessageChannel channel, EpgpRaid raidObject)
+        public async Task PostRaid(IMessageChannel channel, EpgpRaid raidObject)
         {
             if (!(channel is IGuildChannel guildChannel))
             {
                 throw new ArgumentException("Raids can only be posted to server text channels");
             }
-            var guildId = guildChannel.GuildId; 
+            var domainRaid = new Raid() { Id = new Guid(), StartTime = raidObject.StartTime, EndTime = raidObject.StartTime + raidObject.Duration, Name = raidObject.Name };
+            _epgpRepository.PostRaid(domainRaid);
+            raidObject.RaidId = domainRaid.Id;
+            var guildId = guildChannel.GuildId;
             var message = await channel.SendMessageAsync("", false, CreateEmbed(raidObject, guildChannel.GuildId), null);
             var raidData = new RaidData(message, raidObject, guildChannel.GuildId);
+
+            _client.ReactionAdded += ReactionAdded;
+            _client.ReactionRemoved += ReactionRemoved;
+            _aliasService.ActiveAliasChanged += ActiveAliasChanged;
             await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.CasterEmoteName)));
             await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.MeleeEmoteName)));
             await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.RangedEmoteName)));
             await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.TankEmoteName)));
             await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.HealerEmoteName)));
             await message.AddReactionAsync(new Emoji("❌"));
-            await AddRaid(raidData);
-            return raidData.Id;
+            using (var raidMonitor = await AddRaid(raidData))
+            {
+                await raidMonitor.Run();
+            }
+            await RemoveRaid(raidData);
         }
 
         public EpgpRaid GetRaid(ulong raidId = 0)
@@ -174,23 +143,17 @@ namespace BuzzBot.Discord.Services
 
         public async Task KickUser(ulong userId, ulong raidId = 0)
         {
-            if (raidId == 0) raidId = _activeRaidMessages.Keys.LastOrDefault();
-            if (!_activeRaidMessages.ContainsKey(raidId))
-                throw new InvalidOperationException("No active raid message was found for kick operation.");
-            var raid = _activeRaidMessages[raidId];
+            var raid = _raidRepository.GetRaid(raidId);
+            if (raid == null)
+            {
+                throw new InvalidOperationException("No active raid message was found to kick.");
+            }
             if (!raid.RaidObject.Participants.TryRemove(userId, out _))
             {
                 throw new ArgumentException("No user by that name was found to kick");
             }
             var embed = CreateEmbed(raid.RaidObject, raid.ServerId);
             await raid.Message.ModifyAsync(opt => opt.Embed = embed);
-        }
-
-        private void RemoveUser(ICollection<RaidParticipant> participantCollection, ulong user)
-        {
-            var existingParticipant = participantCollection.FirstOrDefault(rp => rp.Id == user);
-            if (existingParticipant == null) return;
-            participantCollection.Remove(existingParticipant);
         }
 
         public async Task KickUser(string alias, ulong raidId = 0)
@@ -201,53 +164,56 @@ namespace BuzzBot.Discord.Services
             var raidData = GetRaidData(raidId);
             if (raidData.Started)
                 throw new InvalidOperationException("The raid has already started");
-            var raidMonitor = _raidMonitors[raidData.Id];
-            raidData.RaidObject.StartTime = DateTime.Now;
-            raidMonitor.UpdateRaid(raidData);
+            raidData.RaidObject.StartTime = DateTime.UtcNow;
+            var domainRaid = _epgpRepository.GetRaid(raidData.RaidObject.RaidId);
+            domainRaid.StartTime = raidData.RaidObject.StartTime.ToUniversalTime();
+            _epgpRepository.Save();
+
         }
 
         private RaidData GetRaidData(ulong raidId)
         {
-            if (raidId == 0) raidId = _activeRaidMessages.Keys.LastOrDefault();
-            if (!_activeRaidMessages.ContainsKey(raidId) || !_raidMonitors.ContainsKey(raidId))
+            var raid = _raidRepository.GetRaid(raidId);
+            if (raid == null)
                 throw new InvalidOperationException("No active raid message was found to start.");
-            return _activeRaidMessages[raidId];
+            return raid;
         }
 
         public void Extend(TimeSpan extend, ulong raidId = 0)
         {
-
             var raidData = GetRaidData(raidId);
             raidData.RaidObject.Duration += extend;
-            _raidMonitors[raidId].UpdateRaid(raidData);
+            var domainRaid = _epgpRepository.GetRaid(raidData.RaidObject.RaidId);
+            domainRaid.EndTime += extend;
+            _epgpRepository.Save();
         }
 
         public void End(ulong raidId = 0)
         {
 
             var raidData = GetRaidData(raidId);
-            var raidMonitor = _raidMonitors[raidData.Id];
-            raidMonitor.RemoveRaid(raidData);
+            raidData.RaidObject.Duration = TimeSpan.Zero;
+            var domainRaid = _epgpRepository.GetRaid(raidData.RaidObject.RaidId);
+            domainRaid.EndTime = DateTime.UtcNow;
+            _epgpRepository.Save();
         }
 
-        private async Task AddRaid(RaidData raidData)
+        private async Task<EpgpRaidMonitor> AddRaid(RaidData raidData)
         {
-            _activeRaidMessages.Add(raidData.Id, raidData);
-            var raidMonitor = _raidMonitorFactory.GetNew(async () => await RemoveRaid(raidData));
-            raidMonitor.AddRaid(raidData);
-            _raidMonitors.Add(raidData.Id, raidMonitor);
-            while (_activeRaidMessages.Count > MaxConcurrentRaids)
+            var raidMonitor = _raidMonitorFactory.GetNew(raidData);
+            raidData.RaidMonitor = raidMonitor;
+            _raidRepository.AddOrUpdateRaid(raidData);
+            while (_raidRepository.Count > MaxConcurrentRaids)
             {
-                await RemoveRaid(_activeRaidMessages.First().Value);
+                await RemoveRaid(_raidRepository.GetRaids().First());
             }
+
+            return raidMonitor;
         }
 
         private async Task RemoveRaid(RaidData raidData)
         {
-            _activeRaidMessages.Remove(raidData.Id);
-            if (!_raidMonitors.TryGetValue(raidData.Id, out var monitor)) return;
-            _raidMonitors.Remove(raidData.Id);
-            monitor.RemoveRaid(raidData);
+            _raidRepository.RemoveRaid(raidData.Id);
             if (raidData.RaidObject.Participants.Values.All(p => p.IsPrimaryAlias)) return;
             foreach (var participant in raidData.RaidObject.Participants.Values)
             {
@@ -288,7 +254,7 @@ namespace BuzzBot.Discord.Services
 
                 .AddField("__Notes__",
                     $"💎 Nexus Crystal Price: {nexusCrystalString}\n" +
-                    $"🎲 Rolled Item GP Cost: {_epgpCalculator.ConvertGpFromGold(raidData.NexusCrystalValue)*2} GP")
+                    $"🎲 Rolled Item GP Cost: {_epgpCalculator.ConvertGpFromGold(raidData.NexusCrystalValue) * 2} GP")
                 .WithFooter((ftr) => ftr.WithText("\u200b\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tStarts"))
                 .WithTimestamp(raidData.StartTime);
             return embed.Build();
@@ -321,7 +287,13 @@ namespace BuzzBot.Discord.Services
         {
             return participant.IsPrimaryAlias ? $"<@{participant.Id}>" : participant.Alias;
         }
-    }
 
-    public delegate Task<IUserMessage> ReplyDelegate(string message, bool isTts, Embed embed, RequestOptions options);
+        public void Dispose()
+        {
+            _client.ReactionAdded -= ReactionAdded;
+            _client.ReactionRemoved -= ReactionRemoved;
+            _aliasService.ActiveAliasChanged -= ActiveAliasChanged;
+            _client = null;
+        }
+    }
 }

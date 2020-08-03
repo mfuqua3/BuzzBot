@@ -5,9 +5,9 @@ using Discord;
 
 namespace BuzzBot.Discord.Services
 {
-    public interface IRaidService
+    public interface IRaidService : IDisposable
     {
-        Task<ulong> PostRaid(IMessageChannel messageChannel, EpgpRaid raidObject);
+        Task PostRaid(IMessageChannel messageChannel, EpgpRaid raidObject);
         EpgpRaid GetRaid(ulong raidId = 0);
         void Start(ulong raidId = 0);
         void Extend(TimeSpan extend, ulong raidId = 0);

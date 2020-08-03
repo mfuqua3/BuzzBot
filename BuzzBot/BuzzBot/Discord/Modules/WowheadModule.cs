@@ -2,7 +2,6 @@
 using BuzzBot.Discord.Services;
 using BuzzBot.Epgp;
 using BuzzBot.Wowhead;
-using BuzzBotData.Repositories;
 using Discord;
 using Discord.Commands;
 using Newtonsoft.Json;

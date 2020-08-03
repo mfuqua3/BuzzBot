@@ -36,6 +36,8 @@ namespace BuzzBot.Epgp
         /// <param name="userId"></param>
         /// <returns></returns>
         List<EpgpAlias> GetAliases(ulong userId);
+
+        void AddAlias(EpgpAlias alias);
         /// <summary>
         /// Raised when a primary alias is changed
         /// </summary>
@@ -44,6 +46,8 @@ namespace BuzzBot.Epgp
         /// Raised when an active alias is changed
         /// </summary>
         event EventHandler<AliasChangeEventArgs> ActiveAliasChanged;
+
+        event EventHandler<EpgpAlias> AliasAdded;
     }
 
     public class AliasChangeEventArgs : EventArgs

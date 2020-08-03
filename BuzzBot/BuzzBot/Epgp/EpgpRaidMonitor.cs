@@ -1,113 +1,107 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Services;
 using BuzzBot.Discord.Utility;
 using BuzzBotData.Data;
-using BuzzBotData.Repositories;
 using Discord;
+using Microsoft.Extensions.Configuration;
 
 namespace BuzzBot.Epgp
 {
     public class EpgpRaidMonitor : IDisposable
     {
         private readonly IEpgpService _epgpService;
-        private readonly EpgpRepository _epgpRepository;
-        private Action _onRaidEndedAction;
-        private EpgpRaid _raid;
         private CancellationTokenSource _cts;
+        private readonly IEmoteService _emoteService;
+        private RaidData _raidData;
+        private bool _restart;
 
-        public EpgpRaidMonitor(IEpgpService epgpService, EpgpRepository epgpRepository, Action onRaidEndedAction)
+        public EpgpRaidMonitor(IEpgpService epgpService, IConfiguration configuration, IEmoteService emoteService, RaidData raidData)
         {
             _epgpService = epgpService;
             _epgpRepository = epgpRepository;
-            _onRaidEndedAction = onRaidEndedAction;
-        }
-
-        public void UpdateRaid(RaidData data)
-        {
-            var raidExists = _raid != null;
-            if (!raidExists)
-            {
-                AddRaid(data);
-                return;
-            }
-
-            if (!_raid.Started)
-            {
-                _cts.Cancel();
-                _raid = null;
-                AddRaid(data);
-                return;
-            }
-
-            _raid = data.RaidObject;
-            if (_raid.StartTime.ToUniversalTime() + _raid.Duration > DateTime.UtcNow)
-            {
-                _cts.Cancel();
-            }
-        }
-
-        public void RemoveRaid(RaidData data)
-        {
-            var raidExists = _raid != null;
-            if (!raidExists) return;
-            _cts.Cancel();
-            if (_raid.Started)
-            {
-                return;
-            }
-
-            Dispose();
-        }
-
-        public void AddRaid(RaidData data)
-        {
-            var raidExists = _raid != null;
-            if (raidExists)
-            {
-                UpdateRaid(data);
-                return;
-            }
+            _emoteService = emoteService;
+            _raidData = raidData;
             _cts = new CancellationTokenSource();
-            _raid = data.RaidObject;
-
-            Task.Factory.StartNew(() => RunRaidMonitor(
-                    data.Message.Channel),
-                TaskCreationOptions.LongRunning);
+            _raidData.RaidObject.PropertyChanged += RaidPropertyChanged;
         }
 
-        private async Task RunRaidMonitor(IMessageChannel messageChannel)
+        private void RaidPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (_raid == null) return;
-            if (_raid.StartTime.ToUniversalTime() > DateTime.UtcNow && !_raid.Started)
+            switch (e.PropertyName)
+            {
+                case nameof(EpgpRaid.StartTime):
+                    UpdateRaidStart();
+                    return;
+                case nameof(EpgpRaid.Duration):
+                    if (!_raidData.Started)
+                    {
+                        UpdateRaidStart();
+                        return;
+                    }
+                    UpdateRaidDuration();
+                    return;
+            }
+        }
+
+        private void UpdateRaidDuration()
+        {
+            if (_raidData.RaidObject.StartTime + _raidData.RaidObject.Duration < GetTimestamp()) return;
+            _cts.Cancel();
+        }
+
+        private void UpdateRaidStart()
+        {
+            if (_raidData.Started) return;
+            if (_raidData.RaidObject.Duration == TimeSpan.Zero)
+            {
+                _cts.Cancel();
+                return;
+            }
+            _restart = true;
+            _cts.Cancel();
+
+        }
+
+        public async Task Run()
+        {
+            var messageChannel = _raidData.Message.Channel;
+            if (_raidData == null) return;
+            if (_raidData.RaidObject.StartTime.ToUniversalTime() > DateTime.UtcNow && !_raidData.Started)
             {
                 try
                 {
-                    var startDelay = _raid.StartTime - GetTimestamp();
+                    var startDelay = _raidData.RaidObject.StartTime - GetTimestamp().ToUniversalTime();
                     if (startDelay > TimeSpan.Zero)
                         await Task.Delay(startDelay, _cts.Token);
                 }
                 catch (TaskCanceledException)
                 {
+                    if (!_restart) return;
+                    _cts = new CancellationTokenSource();
+                    _restart = false;
+                    await Run();
                     return;
                 }
             }
 
-            _raid.Started = true;
-            var award = AwardEp(_raid.StartBonus, "Raid Start Bonus", GetAllUsers(_raid));
+            _raidData.Started = true;
+            var award = AwardEp(_raidData.RaidObject.StartBonus, "Raid Start Bonus", GetAllUsers(_raidData.RaidObject));
             await messageChannel.SendMessageAsync("", false, award);
-            var endTime = DateTime.UtcNow + _raid.Duration;
+            var endTime = DateTime.UtcNow + _raidData.RaidObject.Duration;
             while (!_cts.Token.IsCancellationRequested && endTime > DateTime.UtcNow)
             {
                 try
                 {
-                    await Task.Delay(_raid.TimeBonusDuration, _cts.Token);
-                    if (_raid == null) return;
-                    award = AwardEp(_raid.TimeBonus, "Raid Time Bonus", GetAllUsers(_raid));
+                    await Task.Delay(_raidData.RaidObject.TimeBonusDuration, _cts.Token);
+                    if (_raidData == null) return;
+                    award = AwardEp(_raidData.RaidObject.TimeBonus, "Raid Time Bonus", GetAllUsers(_raidData.RaidObject));
                     await messageChannel.SendMessageAsync("", false, award);
                 }
                 catch (TaskCanceledException)
@@ -115,9 +109,10 @@ namespace BuzzBot.Epgp
                     break;
                 }
             }
-            if (_raid == null) return;
-            award = AwardEp(_raid.EndBonus, "Raid End Bonus", GetAllUsers(_raid));
+            if (_raidData == null) return;
+            award = AwardEp(_raidData.RaidObject.EndBonus, "Raid End Bonus", GetAllUsers(_raidData.RaidObject));
             await messageChannel.SendMessageAsync("", false, award);
+            await messageChannel.SendMessageAsync("", false, BuildRaidSummary());
             Dispose();
         }
 
@@ -168,9 +163,36 @@ namespace BuzzBot.Epgp
 
         }
 
+        private Embed BuildRaidSummary()
+        {
+            var raid = _epgpRepository.GetRaid(_raidData.RaidObject.RaidId);
+            var embedBuilder = new EmbedBuilder()
+                .WithTitle("Raid Summary")
+                .AddField("🌅 Start Time", raid.StartTime.ToEasternTime(), true)
+                .AddField("🌙 End Time", raid.EndTime.ToEasternTime(), true)
+                .AddField("💰 Loot distributed", raid.Loot.Count, true);
+
+            var lootRecipients = raid.Loot.GroupBy(l => l.AwardedAliasId);
+            foreach (var recipient in lootRecipients)
+            {
+                var alias = _epgpRepository.GetAlias(recipient.Key);
+                var itemSb = new StringBuilder();
+                foreach (var raidItem in recipient)
+                {
+                    itemSb.AppendLine($"{raidItem.Item.Name} - {raidItem.Transaction.Value} GP");
+                }
+
+                embedBuilder.AddField(_emoteService.GetAliasString(alias, _raidData.ServerId), itemSb.ToString(), true);
+            }
+
+            return embedBuilder.Build();
+
+        }
+
+
         private DateTime GetTimestamp()
         {
-           return DateTime.Now;
+            return DateTime.Now;
         }
 
         private List<RaidParticipant> GetAllUsers(EpgpRaid raid)
@@ -183,20 +205,11 @@ namespace BuzzBot.Epgp
         private IEnumerable<EpgpAlias> GetAliases(IEnumerable<RaidParticipant> participants) =>
             participants.Select(p => _epgpRepository.GetAlias(p.Alias));
 
-        private Embed GetRaidAlertEmbed(string alertText)
-        {
-            var embedBuilder = new EmbedBuilder()
-                .AddField("__Raid Alert__", alertText)
-                .WithTimestamp(GetTimestamp());
-            return embedBuilder.Build();
-        }
-
         public void Dispose()
         {
-            _onRaidEndedAction();
-            _onRaidEndedAction = null;
+            _raidData.RaidObject.PropertyChanged -= RaidPropertyChanged;
             _cts?.Dispose();
-            _raid = null;
+            _raidData = null;
         }
     }
 }

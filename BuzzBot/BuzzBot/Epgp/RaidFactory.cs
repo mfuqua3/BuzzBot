@@ -36,7 +36,7 @@ namespace BuzzBot.Epgp
             if (template == null) return null;
             var tzi = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
             var startTime = DateTime.UtcNow + TimeSpan.FromMinutes(template.SignUpDurationMinutes);
-            var startTimeEst = TimeZoneInfo.ConvertTimeFromUtc(startTime, tzi);
+            //var startTimeEst = TimeZoneInfo.ConvertTimeFromUtc(startTime, tzi);
             return new EpgpRaid
             {
                 NexusCrystalValue = nexusCrystalPrice,
@@ -45,7 +45,7 @@ namespace BuzzBot.Epgp
                 Duration = TimeSpan.FromMinutes(template.RaidDurationMinutes),
                 TimeBonusDuration = TimeSpan.FromMinutes(template.TimeBonusDurationMinutes),
                 Capacity = template.RaidCapacity,
-                StartTime = startTimeEst,
+                StartTime = startTime,
                 TimeBonus = template.TimeBonus
             };
         }

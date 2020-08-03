@@ -15,6 +15,8 @@ namespace BuzzBotData.Data
         public GuildUser User { get; set; }
         public ulong UserId { get; set; }
         public List<EpgpTransaction> Transactions { get; set; }
+        public List<RaidAlias> Raids { get; set; }
+        public List<RaidItem> AwardedItems { get; set; }
     }
 
     public enum Class

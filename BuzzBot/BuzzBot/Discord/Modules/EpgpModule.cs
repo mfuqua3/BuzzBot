@@ -14,7 +14,6 @@ using BuzzBot.Discord.Services;
 using BuzzBot.Discord.Utility;
 using BuzzBot.Epgp;
 using BuzzBotData.Data;
-using BuzzBotData.Repositories;
 using CsvHelper;
 using Discord;
 using Discord.Commands;
@@ -27,7 +26,6 @@ namespace BuzzBot.Discord.Modules
     [Group(GroupName)]
     public class EpgpModule : BuzzBotModuleBase<SocketCommandContext>
     {
-        private readonly EpgpRepository _repository;
         private readonly IPriorityReportingService _priorityReportingService;
         private readonly IQueryService _queryService;
         private readonly IEpgpService _epgpService;
@@ -43,7 +41,6 @@ namespace BuzzBot.Discord.Modules
         public const string GroupName = "epgp";
 
         public EpgpModule(
-            EpgpRepository repository,
             IPriorityReportingService priorityReportingService,
             IQueryService queryService,
             IEpgpService epgpService,
@@ -57,7 +54,6 @@ namespace BuzzBot.Discord.Modules
             IItemService itemService,
             IRaidService raidService)
         {
-            _repository = repository;
             _priorityReportingService = priorityReportingService;
             _queryService = queryService;
             _epgpService = epgpService;
@@ -92,9 +88,9 @@ namespace BuzzBot.Discord.Modules
             if (item == null) return;
             var gp = _epgpCalculator.ConvertGpFromGold(raid.NexusCrystalValue) * 2;
             var activeAlias = _aliasService.GetActiveAlias(user.Id);
-            _epgpService.Gp(activeAlias, gp, $"[Roll] {itemQueryString}", TransactionType.GpFromGear);
+            _epgpService.Gp(activeAlias, item, $"[Roll] {itemQueryString}", gp);
             var embed = CreateItemEmbed(item, gp);
-            var userString = activeAlias.IsPrimary ? $"<@{user.Id}>" : GetAliasString(activeAlias);
+            var userString = activeAlias.IsPrimary ? $"<@{user.Id}>" : _emoteService.GetAliasString(activeAlias, Context.Guild.Id);
             await ReplyAsync($"Assigning to {userString}", false, embed);
         }
 
@@ -113,12 +109,6 @@ namespace BuzzBot.Discord.Modules
                     await ReplyAsync("Decay operation cancelled.");
                 }));
             return Task.CompletedTask;
-        }
-        private string GetAliasString(EpgpAlias alias)
-        {
-            var emoteName = alias.Class.GetEmoteName();
-            var fullyQualifiedName = _emoteService.GetFullyQualifiedName(Context.Guild.Id, emoteName);
-            return $"{fullyQualifiedName} {alias.Name}";
         }
 
 
@@ -165,9 +155,9 @@ namespace BuzzBot.Discord.Modules
             var activeAlias = _aliasService.GetActiveAlias(user.Id);
             var gp = _epgpCalculator.CalculateItem(item, activeAlias.Class == Class.Hunter, isOffhand);
             var embed = CreateItemEmbed(item, gp);
-            var userString = activeAlias.IsPrimary ? $"<@{user.Id}>" : GetAliasString(activeAlias);
+            var userString = activeAlias.IsPrimary ? $"<@{user.Id}>" : _emoteService.GetAliasString(activeAlias, Context.Guild.Id);
             await ReplyAsync($"Assigning to {userString}", false, embed);
-            _epgpService.Gp(activeAlias, (int)Math.Round(gp), $"[Claim] {item.Name}", TransactionType.GpFromGear);
+            _epgpService.Gp(activeAlias, item, $"[Claim] {item.Name}");
         }
 
         [Command("correct")]
@@ -299,7 +289,7 @@ namespace BuzzBot.Discord.Modules
             var alias = _aliasService.GetActiveAlias(user.Id);
             _epgpService.Ep(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
             var dmChannel = await GetUserChannel();
-            await dmChannel.SendMessageAsync($"{value} EP successfully granted to {GetAliasString(alias)}");
+            await dmChannel.SendMessageAsync($"{value} EP successfully granted to {_emoteService.GetAliasString(alias, Context.Guild.Id)}");
         }
 
         [Command("gp")]
@@ -416,6 +406,7 @@ namespace BuzzBot.Discord.Modules
                 Name = aliasName,
                 Id = Guid.NewGuid()
             };
+
             _repository.AddAlias(alias);
             _epgpService.Set(aliasName, ep, gp, "Alias initialized");
             await ReplyAsync($"New alias add to {user.GetAliasName()}: \"{aliasName} : {userClass}\"");

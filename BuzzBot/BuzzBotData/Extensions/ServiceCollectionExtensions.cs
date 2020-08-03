@@ -1,5 +1,4 @@
 ﻿using BuzzBotData.Data;
-using BuzzBotData.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BuzzBotData.Extensions
@@ -8,10 +7,8 @@ namespace BuzzBotData.Extensions
     {
         public static IServiceCollection AddData(this IServiceCollection services)
         {
-            services.AddSingleton<BuzzBotDbContext>()
-                .AddSingleton<GuildBankRepository>()
-                .AddSingleton<EpgpRepository>()
-                .AddSingleton<ItemRepository>();
+            services.AddTransient<BuzzBotDbContext>()
+                .AddTransient<IDbContextFactory, DbContextFactory>();
             return services;
         }
     }

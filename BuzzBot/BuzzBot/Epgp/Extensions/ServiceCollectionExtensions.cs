@@ -14,7 +14,9 @@ namespace BuzzBot.Epgp.Extensions
                 .AddSingleton<IEpgpService, EpgpService>()
                 .AddTransient<IRaidMonitorFactory, RaidMonitorFactory>()
                 .AddSingleton<IAliasService, AliasService>()
-                .AddSingleton<NexusHubClient>();
+                .AddSingleton<NexusHubClient>()
+                .AddTransient<IUserService, UserService>()
+                .AddSingleton<IRaidRepository, RaidRepository>();
             return services;
         }
     }

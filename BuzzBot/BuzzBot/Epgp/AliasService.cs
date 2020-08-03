@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using BuzzBotData.Data;
-using BuzzBotData.Repositories;
 
 namespace BuzzBot.Epgp
 {
@@ -69,7 +68,15 @@ namespace BuzzBot.Epgp
             return _epgpRepository.GetAliasesForUser(userId).ToList();
         }
 
+        public void AddAlias(EpgpAlias alias)
+        {
+            _epgpRepository.AddAlias(alias);
+            _epgpRepository.Save();
+            AliasAdded?.Invoke(this, alias);
+        }
+
         public event EventHandler<AliasChangeEventArgs> PrimaryAliasChanged;
         public event EventHandler<AliasChangeEventArgs> ActiveAliasChanged;
+        public event EventHandler<EpgpAlias> AliasAdded;
     }
 }

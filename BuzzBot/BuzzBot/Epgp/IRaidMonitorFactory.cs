@@ -1,9 +1,10 @@
 ﻿using System;
+using BuzzBot.Discord.Services;
 
 namespace BuzzBot.Epgp
 {
     public interface IRaidMonitorFactory
     {
-        EpgpRaidMonitor GetNew(Action onRaidEndedAction);
+        EpgpRaidMonitor GetNew(RaidData raidData);
     }
 }

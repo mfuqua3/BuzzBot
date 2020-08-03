@@ -2,7 +2,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 using BuzzBotData.Data;
-using BuzzBotData.Repositories;
 using Discord;
 
 namespace BuzzBot.Discord.Services

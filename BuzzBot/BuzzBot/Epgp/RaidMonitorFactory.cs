@@ -1,5 +1,5 @@
 ﻿using System;
-using BuzzBotData.Repositories;
+using BuzzBot.Discord.Services;
 
 namespace BuzzBot.Epgp
 {
@@ -7,16 +7,18 @@ namespace BuzzBot.Epgp
     {
         private readonly EpgpRepository _epgpRepository;
         private readonly IEpgpService _epgpService;
+        private IEmoteService _emoteService;
 
-        public RaidMonitorFactory(IEpgpService epgpService, EpgpRepository epgpRepository)
+        public RaidMonitorFactory(IEpgpService epgpService, EpgpRepository epgpRepository, IEmoteService emoteService)
         {
             _epgpService = epgpService;
             _epgpRepository = epgpRepository;
+            _emoteService = emoteService;
         }
 
-        public EpgpRaidMonitor GetNew(Action onRaidEndedAction)
+        public EpgpRaidMonitor GetNew(RaidData raidData)
         {
-            return new EpgpRaidMonitor(_epgpService, _epgpRepository, onRaidEndedAction);
+            return new EpgpRaidMonitor(_epgpService, _epgpRepository, _emoteService, raidData);
         }
     }
 }
