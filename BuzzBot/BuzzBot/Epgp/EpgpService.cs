@@ -46,11 +46,12 @@ namespace BuzzBot.Epgp
             while (true)
             {
                 await Task.Delay(TimeSpan.FromHours(6));
-                var time = DateTime.Now.ToEasternTime();
+                var time = DateTime.Now;
                 var config = _configurationService.GetConfiguration();
                 if (time.DayOfWeek != config.DecayDayOfWeek) continue;
                 if (time - _lastDecayApplied < TimeSpan.FromHours(24)) continue;
                 Decay(config.DecayPercentage);
+                _lastDecayApplied = DateTime.Now;
             }
         }
 
@@ -175,8 +176,8 @@ namespace BuzzBot.Epgp
             var aliases = _epgpRepository.GetAliases();
             foreach (var alias in aliases)
             {
-                var epDecay = (int)Math.Round(alias.EffortPoints * asPercent, MidpointRounding.AwayFromZero);
-                var gpDecay = (int)Math.Round(alias.GearPoints * asPercent, MidpointRounding.AwayFromZero);
+                var epDecay = -(int)Math.Round(alias.EffortPoints * asPercent, MidpointRounding.AwayFromZero);
+                var gpDecay = -(int)Math.Round(alias.GearPoints * asPercent, MidpointRounding.AwayFromZero);
                 if (string.IsNullOrWhiteSpace(epgpFlag) || epgpFlag.Equals(EpFlag))
                     Ep(alias, epDecay, $"{decayPercent}% Decay", TransactionType.EpDecay);
                 if (string.IsNullOrWhiteSpace(epgpFlag) || epgpFlag.Equals(GpFlag))
