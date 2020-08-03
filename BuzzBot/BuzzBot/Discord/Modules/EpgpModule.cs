@@ -19,6 +19,8 @@ using CsvHelper;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.VisualBasic.FileIO;
 
 namespace BuzzBot.Discord.Modules
@@ -39,6 +41,7 @@ namespace BuzzBot.Discord.Modules
         private readonly IDocumentationService _documentationService;
         private IEmoteService _emoteService;
         private IAliasService _aliasService;
+        private readonly IConfiguration _configuration;
         public const string GroupName = "epgp";
 
         public EpgpModule(
@@ -53,7 +56,8 @@ namespace BuzzBot.Discord.Modules
             IPageService pageService,
             IDocumentationService documentationService,
             IEmoteService emoteService,
-            IAliasService aliasService)
+            IAliasService aliasService,
+            IConfiguration configuration)
         {
             _repository = repository;
             _priorityReportingService = priorityReportingService;
@@ -67,6 +71,7 @@ namespace BuzzBot.Discord.Modules
             _documentationService = documentationService;
             _emoteService = emoteService;
             _aliasService = aliasService;
+            _configuration = configuration;
         }
 
         [Command("decay")]
@@ -190,7 +195,7 @@ namespace BuzzBot.Discord.Modules
             try
             {
                 var csv = new CsvReader(streamReader, CultureInfo.CurrentCulture);
-                var records = csv.GetRecords<EpgpCsvResult>();
+                var records = csv.GetRecords<EpgpCsvRecord>();
                 foreach (var record in records)
                 {
                     _epgpService.Set(record.Name, record.EP, record.GP);
@@ -474,6 +479,44 @@ namespace BuzzBot.Discord.Modules
                     async () => { await ReplyAsync("Operation cancelled"); });
             });
             return Task.CompletedTask;
+        }
+        [Command("remove_records", RunMode = RunMode.Async)]
+        [RequiresBotAdmin]
+        public async Task RemoveRecords(int day, int month, int year, int hour, int minute)
+        {
+            var dateTime = new DateTime(year, month, day, hour, minute, 0);
+            await _queryService.SendQuery($"Delete all records after {dateTime}?", Context.Channel, async () =>
+                {
+                    await using var context = new BuzzBotDbContext(_configuration);
+                    var transactions = (context.EpgpTransactions as IQueryable<EpgpTransaction>).Where(t => t.TransactionDateTime >= dateTime)
+                        .Include(t=>t.Alias)
+                        .ToList();
+                    foreach (var transaction in transactions)
+                    {
+                        switch (transaction.TransactionType)
+                        {
+                            case TransactionType.EpAutomated:
+                            case TransactionType.EpManual:
+                            case TransactionType.EpDecay:
+                                transaction.Alias.EffortPoints -= transaction.Value;
+                                break;
+                            case TransactionType.GpFromGear:
+                            case TransactionType.GpManual:
+                            case TransactionType.GpDecay:
+                                transaction.Alias.GearPoints -= transaction.Value;
+                                break;
+                            default:
+                                throw new ArgumentOutOfRangeException();
+                        }
+
+                        transaction.Alias = null;
+                        context.EpgpTransactions.Remove(transaction);
+                    }
+
+                    context.SaveChanges();
+                    return;
+                },
+                async () => await ReplyAsync("Operation cancelled"));
         }
     }
 }
