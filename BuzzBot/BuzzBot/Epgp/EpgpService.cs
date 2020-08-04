@@ -19,7 +19,6 @@ namespace BuzzBot.Epgp
         private readonly BuzzBotDbContext _dbContext;
         public const string EpFlag = "-ep";
         public const string GpFlag = "-gp";
-        //private DateTime _lastDecayApplied;
 
         public EpgpService(IEpgpConfigurationService configurationService, IEpgpCalculator epgpCalculator, IRaidRepository raidRepository, IAliasService aliasService, BuzzBotDbContext dbContext)
         {
@@ -28,9 +27,7 @@ namespace BuzzBot.Epgp
             _raidRepository = raidRepository;
             _aliasService = aliasService;
             _dbContext = dbContext;
-            //configurationService.ConfigurationChanged += ConfigurationChanged;
             aliasService.AliasAdded += AliasAdded;
-            //Task.Factory.StartNew(DecayProcess);
         }
 
         private void AliasAdded(object? sender, EpgpAlias e)
@@ -40,38 +37,6 @@ namespace BuzzBot.Epgp
             var gp = config.GpMinimum;
             Set(e.Name, ep, gp, "User initialization");
         }
-
-        //private async Task DecayProcess()
-        //{
-        //    var transactions = _epgpRepository.GetTransactions().OrderByDescending(t => t.TransactionDateTime);
-        //    var lastDecay = transactions.FirstOrDefault(t => t.TransactionType == TransactionType.GpDecay);
-        //    _lastDecayApplied = lastDecay?.TransactionDateTime.ToEasternTime() ?? DateTime.Now - TimeSpan.FromDays(7);
-        //    while (true)
-        //    {
-        //        await Task.Delay(TimeSpan.FromHours(6));
-        //        var time = DateTime.Now;
-        //        var config = _configurationService.GetConfiguration();
-        //        if (time.DayOfWeek != config.DecayDayOfWeek) continue;
-        //        if (time - _lastDecayApplied < TimeSpan.FromHours(24)) continue;
-        //        Decay(config.DecayPercentage);
-        //        _lastDecayApplied = DateTime.Now;
-        //    }
-        //}
-
-        //private void ConfigurationChanged(object? _, EventArgs ___)
-        //{
-        //    var config = _configurationService.GetConfiguration();
-        //    var needsEpAdjustment = _epgpRepository.GetAliases().Where(a => a.EffortPoints < config.EpMinimum);
-        //    foreach (var alias in needsEpAdjustment)
-        //    {
-        //        Set(alias.Name, config.EpMinimum, alias.GearPoints, "Configuration update (EP minimum)");
-        //    }
-        //    var needsGpAdjustment = _epgpRepository.GetAliases().Where(a => a.GearPoints < config.GpMinimum);
-        //    foreach (var alias in needsGpAdjustment)
-        //    {
-        //        Set(alias.Name, alias.EffortPoints, config.GpMinimum, "Configuration update (GP minimum)");
-        //    }
-        //}
 
         public void Ep(string aliasName, int value, string memo, TransactionType type = TransactionType.EpManual)
         {

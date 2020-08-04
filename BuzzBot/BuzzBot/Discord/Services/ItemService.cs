@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using BuzzBotData.Data;
 using Discord;
+using Microsoft.EntityFrameworkCore;
 
 namespace BuzzBot.Discord.Services
 {
@@ -18,7 +19,7 @@ namespace BuzzBot.Discord.Services
         }
         public async Task<Item> TryGetItem(string queryString, IMessageChannel queryChannel)
         {
-            var items = _dbContext.Items.AsQueryable().Where(itm => itm.Name.Contains(queryString)).ToList();
+            var items = _dbContext.Items.AsQueryable().Where(itm => EF.Functions.Like(itm.Name, $"%{queryString}%")).OrderByDescending(i=>i.ItemLevel).ToList();
             if (items.Count == 0)
             {
                 await queryChannel.SendMessageAsync($"\"{queryString}\" returned no results.");

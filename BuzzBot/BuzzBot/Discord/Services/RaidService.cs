@@ -112,6 +112,17 @@ namespace BuzzBot.Discord.Services
             {
                 throw new ArgumentException("Raids can only be posted to server text channels");
             }
+
+            var leader = await guildChannel.GetUserAsync(raidObject.RaidLeader);
+            IMessageChannel leaderChannel;
+            if (leader == null)
+            {
+                leaderChannel = channel;
+            }
+            else
+            {
+                leaderChannel = await leader.GetOrCreateDMChannelAsync();
+            }
             var domainRaid = new Raid() { Id = Guid.NewGuid(), StartTime = raidObject.StartTime, EndTime = raidObject.StartTime + raidObject.Duration, Name = raidObject.Name };
             _dbContext.Raids.Add(domainRaid);
             _dbContext.SaveChanges();
@@ -119,7 +130,7 @@ namespace BuzzBot.Discord.Services
             var guildId = guildChannel.GuildId;
             var message = await channel.SendMessageAsync("", false, CreateEmbed(raidObject, guildChannel.GuildId), null);
             var raidData = new RaidData(message, raidObject, guildChannel.GuildId);
-
+            raidData.LeaderChannel = leaderChannel;
             _client.ReactionAdded += ReactionAdded;
             _client.ReactionRemoved += ReactionRemoved;
             _aliasService.ActiveAliasChanged += ActiveAliasChanged;

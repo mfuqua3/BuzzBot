@@ -97,7 +97,11 @@ namespace BuzzBot.Epgp
 
             _raidData.Started = true;
             var award = AwardEp(_raidData.RaidObject.StartBonus, "Raid Start Bonus", GetAllUsers(_raidData.RaidObject));
-            await messageChannel.SendMessageAsync("", false, award);
+            await _raidData.LeaderChannel.SendMessageAsync("", false, award);
+            if (_raidData.LeaderChannel != messageChannel)
+            {
+                await messageChannel.SendMessageAsync("", false, AlertEmbed("The Raid has begun"));
+            }
             var endTime = DateTime.UtcNow + _raidData.RaidObject.Duration;
             while (!_cts.Token.IsCancellationRequested && endTime > DateTime.UtcNow)
             {
@@ -106,7 +110,7 @@ namespace BuzzBot.Epgp
                     await Task.Delay(_raidData.RaidObject.TimeBonusDuration, _cts.Token);
                     if (_raidData == null) return;
                     award = AwardEp(_raidData.RaidObject.TimeBonus, "Raid Time Bonus", GetAllUsers(_raidData.RaidObject));
-                    await messageChannel.SendMessageAsync("", false, award);
+                    await _raidData.LeaderChannel.SendMessageAsync("", false, award);
                 }
                 catch (TaskCanceledException)
                 {
@@ -115,7 +119,7 @@ namespace BuzzBot.Epgp
             }
             if (_raidData == null) return;
             award = AwardEp(_raidData.RaidObject.EndBonus, "Raid End Bonus", GetAllUsers(_raidData.RaidObject));
-            await messageChannel.SendMessageAsync("", false, award);
+            await _raidData.LeaderChannel.SendMessageAsync("", false, award);
             await messageChannel.SendMessageAsync("", false, BuildRaidSummary());
         }
 
@@ -176,7 +180,7 @@ namespace BuzzBot.Epgp
             var embedBuilder = new EmbedBuilder()
                 .WithTitle("Raid Summary")
                 .AddField("🌅 Start Time", raid.StartTime.ToEasternTime(), true)
-                .AddField("🌙 End Time", raid.EndTime.ToEasternTime(), true)
+                .AddField("🌙 End Time", DateTime.UtcNow.ToEasternTime(), true)
                 .AddField("💰 Loot distributed", raid.Loot.Count, true);
 
             var lootRecipients = raid.Loot.GroupBy(l => l.AwardedAliasId);
@@ -196,6 +200,12 @@ namespace BuzzBot.Epgp
 
         }
 
+        private Embed AlertEmbed(string alertMessage)
+        {
+            var embedBuilder = new EmbedBuilder().WithCurrentTimestamp();
+            embedBuilder.AddField("Alert", alertMessage);
+            return embedBuilder.Build();
+        }
 
         private DateTime GetTimestamp()
         {
