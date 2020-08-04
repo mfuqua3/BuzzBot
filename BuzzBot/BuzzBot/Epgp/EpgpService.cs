@@ -63,7 +63,7 @@ namespace BuzzBot.Epgp
             Ep(alias, value, memo, type);
         }
 
-        public void Ep(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.GpManual)
+        public void Ep(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.EpManual)
         {
             var config = _configurationService.GetConfiguration();
             var change = alias.EffortPoints + value < config.EpMinimum ? alias.EffortPoints - config.EpMinimum : value;
