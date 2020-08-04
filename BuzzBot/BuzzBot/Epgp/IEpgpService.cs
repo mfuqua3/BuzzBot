@@ -10,7 +10,7 @@ namespace BuzzBot.Epgp
         void Decay(int decayPercent, string epgpFlag);
         bool Set(string aliasName, int ep, int gp, string memo = "Manual Value Correction");
         void Gp(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.GpManual);
-        void Ep(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.GpManual);
+        void Ep(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.EpManual);
         void Gp(EpgpAlias alias, Item item, string memo, int overrideGpValue = -1);
     }
 }
