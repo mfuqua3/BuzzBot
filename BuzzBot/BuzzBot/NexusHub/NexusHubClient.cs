@@ -44,9 +44,7 @@ namespace BuzzBot.NexusHub
         public async Task<OverviewResponseViewModel> GetItemOverview(string server,
             CancellationToken token = default(CancellationToken))
         {
-            var httpResponseMessage =
-                await _client.GetAsync(@"https://api.nexushub.co/wow-classic/v1/items/Kromcrush-Horde/");
-           // var httpResponseMessage = await _client.GetAsync($"{ApiBaseAddress}/wow-classic/v1/items/{server}", token);
+           var httpResponseMessage = await _client.GetAsync($"{ApiBaseAddress}/wow-classic/v1/items/{server}/", token);
             if (!httpResponseMessage.IsSuccessStatusCode) return null;
             var content = await httpResponseMessage.Content.ReadAsStringAsync();
             var response = JsonConvert.DeserializeObject<OverviewResponseViewModel>(content);

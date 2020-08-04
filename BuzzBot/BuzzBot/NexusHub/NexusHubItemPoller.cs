@@ -50,12 +50,6 @@ namespace BuzzBot.NexusHub
                     await Task.Delay(TimeSpan.FromMinutes(1));
                     continue;
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex);
-                    await Task.Delay(TimeSpan.FromSeconds(15));
-                    continue;
-                }
                 if (itemData != null)
                 {
                     await using var context = new BuzzBotDbContext(_configuration);

@@ -12,6 +12,7 @@ namespace BuzzBot.Discord.Services
         public EpgpRaidMonitor RaidMonitor { get; set; }
         public ulong Id => Message.Id;
         public bool Started { get; set; }
+        public IMessageChannel LeaderChannel { get; set; }
 
         public RaidData(IUserMessage message, EpgpRaid raidObject, ulong serverId)
         {
