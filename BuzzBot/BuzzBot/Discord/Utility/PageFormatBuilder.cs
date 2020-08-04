@@ -86,7 +86,7 @@ public class PageFormatBuilder
         for (int i = 0; i < numberOfColumns; i++)
         {
             var minimumColumnSize = Math.Max(_columnData[0].Title.Length,
-                _rowData.Select(rd => rd.Fields[i].Length).Max()) + 2;
+                _rowData.Select(rd => rd.Fields[i]?.Length ?? 0).Max()) + 2;
             minimumColumnSizes.Add(minimumColumnSize);
         }
 
