@@ -48,6 +48,26 @@ namespace BuzzBot.Discord.Services
                 _dbContext.Guilds.Remove(existingGuild);
             }
 
+            foreach (var newCharacter in guild.Characters)
+            {
+                foreach (var newBag in newCharacter.Bags)
+                {
+                    foreach (var newBagSlot in newBag.BagSlots)
+                    {
+                        newBagSlot.Item = null;
+                        _dbContext.BagSlots.Add(newBagSlot);
+                    }
+
+                    newBag.BagSlots = null;
+                    newBag.BagItem = null;
+                    _dbContext.Bags.Add(newBag);
+                }
+
+                newCharacter.Bags = null;
+                _dbContext.Characters.Add(newCharacter);
+            }
+
+            guild.Characters = null;
             _dbContext.Guilds.Add(guild);
             _dbContext.SaveChanges();
         }
