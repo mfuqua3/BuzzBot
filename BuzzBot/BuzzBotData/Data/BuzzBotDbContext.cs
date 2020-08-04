@@ -15,8 +15,7 @@ namespace BuzzBotData.Data
         public DbSet<EpgpAlias> Aliases { get; set; }
         public DbSet<EpgpTransaction> EpgpTransactions { get; set; }
         public DbSet<Raid> Raids { get; set; }
-        public DbSet<RaidAlias> RaidAlias { get; set; }
-        public DbSet<RaidItem> RaidItem { get; set; }
+        public DbSet<RaidItem> RaidItems { get; set; }
 
         public BuzzBotDbContext()
         {
@@ -51,9 +50,6 @@ namespace BuzzBotData.Data
                 .HasForeignKey(ra => ra.AliasId);
 
             modelBuilder.Entity<RaidItem>()
-                .HasKey(ri => new {ri.RaidId, ri.TransactionId});
-
-            modelBuilder.Entity<RaidItem>()
                 .HasOne(ri => ri.Raid)
                 .WithMany(r => r.Loot)
                 .HasForeignKey(ri => ri.RaidId);
@@ -63,11 +59,12 @@ namespace BuzzBotData.Data
                 .WithMany(a => a.AwardedItems)
                 .HasForeignKey(ri => ri.AwardedAliasId);
 
-            modelBuilder.Entity<RaidItem>()
-                .HasOne(ri => ri.Item)
-                .WithOne()
-                .HasForeignKey<RaidItem>(ri => ri.ItemId);
-
+            modelBuilder.Entity<RaidItem>(entity =>
+            {
+                entity.HasOne<Item>(ri => ri.Item)
+                    .WithMany(i => i.RaidItems)
+                    .HasForeignKey(ri => ri.ItemId);
+            });
             modelBuilder.Entity<RaidItem>()
                 .HasOne(ri => ri.Transaction)
                 .WithOne()

@@ -6,28 +6,31 @@ using System.Threading.Tasks;
 using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Services;
 using BuzzBotData.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace BuzzBot.Epgp
 {
     public class EpgpService : IEpgpService
     {
-        private readonly EpgpRepository _epgpRepository;
         private readonly IEpgpConfigurationService _configurationService;
         private readonly IEpgpCalculator _epgpCalculator;
         private readonly IRaidRepository _raidRepository;
+        private readonly IAliasService _aliasService;
+        private readonly BuzzBotDbContext _dbContext;
         public const string EpFlag = "-ep";
         public const string GpFlag = "-gp";
-        private DateTime _lastDecayApplied;
+        //private DateTime _lastDecayApplied;
 
-        public EpgpService(EpgpRepository epgpRepository, IEpgpConfigurationService configurationService, IEpgpCalculator epgpCalculator, IRaidRepository raidRepository, IAliasService aliasService)
+        public EpgpService(IEpgpConfigurationService configurationService, IEpgpCalculator epgpCalculator, IRaidRepository raidRepository, IAliasService aliasService, BuzzBotDbContext dbContext)
         {
-            _epgpRepository = epgpRepository;
             _configurationService = configurationService;
             _epgpCalculator = epgpCalculator;
             _raidRepository = raidRepository;
-            configurationService.ConfigurationChanged += ConfigurationChanged;
+            _aliasService = aliasService;
+            _dbContext = dbContext;
+            //configurationService.ConfigurationChanged += ConfigurationChanged;
             aliasService.AliasAdded += AliasAdded;
-            Task.Factory.StartNew(DecayProcess);
+            //Task.Factory.StartNew(DecayProcess);
         }
 
         private void AliasAdded(object? sender, EpgpAlias e)
@@ -38,61 +41,76 @@ namespace BuzzBot.Epgp
             Set(e.Name, ep, gp, "User initialization");
         }
 
-        private async Task DecayProcess()
-        {
-            var transactions = _epgpRepository.GetTransactions().OrderByDescending(t => t.TransactionDateTime);
-            var lastDecay = transactions.FirstOrDefault(t => t.TransactionType == TransactionType.GpDecay);
-            _lastDecayApplied = lastDecay?.TransactionDateTime.ToEasternTime() ?? DateTime.Now - TimeSpan.FromDays(7);
-            while (true)
-            {
-                await Task.Delay(TimeSpan.FromHours(6));
-                var time = DateTime.Now;
-                var config = _configurationService.GetConfiguration();
-                if (time.DayOfWeek != config.DecayDayOfWeek) continue;
-                if (time - _lastDecayApplied < TimeSpan.FromHours(24)) continue;
-                Decay(config.DecayPercentage);
-                _lastDecayApplied = DateTime.Now;
-            }
-        }
+        //private async Task DecayProcess()
+        //{
+        //    var transactions = _epgpRepository.GetTransactions().OrderByDescending(t => t.TransactionDateTime);
+        //    var lastDecay = transactions.FirstOrDefault(t => t.TransactionType == TransactionType.GpDecay);
+        //    _lastDecayApplied = lastDecay?.TransactionDateTime.ToEasternTime() ?? DateTime.Now - TimeSpan.FromDays(7);
+        //    while (true)
+        //    {
+        //        await Task.Delay(TimeSpan.FromHours(6));
+        //        var time = DateTime.Now;
+        //        var config = _configurationService.GetConfiguration();
+        //        if (time.DayOfWeek != config.DecayDayOfWeek) continue;
+        //        if (time - _lastDecayApplied < TimeSpan.FromHours(24)) continue;
+        //        Decay(config.DecayPercentage);
+        //        _lastDecayApplied = DateTime.Now;
+        //    }
+        //}
 
-        private void ConfigurationChanged(object? _, EventArgs ___)
-        {
-            var config = _configurationService.GetConfiguration();
-            var needsEpAdjustment = _epgpRepository.GetAliases().Where(a => a.EffortPoints < config.EpMinimum);
-            foreach (var alias in needsEpAdjustment)
-            {
-                Set(alias.Name, config.EpMinimum, alias.GearPoints, "Configuration update (EP minimum)");
-            }
-            var needsGpAdjustment = _epgpRepository.GetAliases().Where(a => a.GearPoints < config.GpMinimum);
-            foreach (var alias in needsGpAdjustment)
-            {
-                Set(alias.Name, alias.EffortPoints, config.GpMinimum, "Configuration update (GP minimum)");
-            }
-        }
+        //private void ConfigurationChanged(object? _, EventArgs ___)
+        //{
+        //    var config = _configurationService.GetConfiguration();
+        //    var needsEpAdjustment = _epgpRepository.GetAliases().Where(a => a.EffortPoints < config.EpMinimum);
+        //    foreach (var alias in needsEpAdjustment)
+        //    {
+        //        Set(alias.Name, config.EpMinimum, alias.GearPoints, "Configuration update (EP minimum)");
+        //    }
+        //    var needsGpAdjustment = _epgpRepository.GetAliases().Where(a => a.GearPoints < config.GpMinimum);
+        //    foreach (var alias in needsGpAdjustment)
+        //    {
+        //        Set(alias.Name, alias.EffortPoints, config.GpMinimum, "Configuration update (GP minimum)");
+        //    }
+        //}
 
         public void Ep(string aliasName, int value, string memo, TransactionType type = TransactionType.EpManual)
         {
-            var alias = _epgpRepository.GetAlias(aliasName);
+            var alias = _aliasService.GetAlias(aliasName);
             Ep(alias, value, memo, type);
         }
 
-        public void Ep(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.GpManual)
+        public void Ep(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.EpManual)
         {
             var transaction = GetTransaction(alias, value, memo, type);
-            _epgpRepository.PostTransaction(transaction);
-            _epgpRepository.Save();
+            PostTransaction(alias, transaction);
+        }
+
+        private void PostTransaction(EpgpAlias alias, EpgpTransaction transaction)
+        {
+            _dbContext.EpgpTransactions.Add(transaction);
+            var currency = transaction.TransactionType.GetAttributeOfType<CurrencyAttribute>().Currency;
+            switch (currency)
+            {
+                case Currency.Ep:
+                    alias.EffortPoints += transaction.Value;
+                    break;
+                case Currency.Gp:
+                    alias.GearPoints += transaction.Value;
+                    break;
+            }
+
+            _dbContext.SaveChanges();
         }
         public void Gp(string aliasName, int value, string memo, TransactionType type = TransactionType.GpManual)
         {
-            var alias = _epgpRepository.GetAlias(aliasName);
+            var alias = _aliasService.GetAlias(aliasName);
             Gp(alias, value, memo, type);
         }
 
         public void Gp(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.GpManual)
         {
             var transaction = GetTransaction(alias, value, memo, type);
-            _epgpRepository.PostTransaction(transaction);
-            _epgpRepository.Save();
+            PostTransaction(alias, transaction);
         }
 
         public void Gp(EpgpAlias alias, Item item, string memo, int overrideGpValue = -1)
@@ -105,18 +123,22 @@ namespace BuzzBot.Epgp
                 Gp(alias, rounded, memo, TransactionType.GpFromGear);
                 return;
             }
+
             var transaction = GetTransaction(alias, (int)Math.Round(gpValue, MidpointRounding.AwayFromZero), memo, TransactionType.GpFromGear);
+            _dbContext.EpgpTransactions.Add(transaction);
+            alias.Transactions.Add(transaction);
+            alias.GearPoints += transaction.Value;
+            var raidData = _dbContext.Raids.Include(r => r.Loot).First(r => r.Id == raid.RaidObject.RaidId);
             var raidItem = new RaidItem
             {
-                AwardedAlias = alias,
+                Id = Guid.NewGuid(),
                 AwardedAliasId = alias.Id,
-                Item = item,
                 ItemId = item.Id,
-                RaidId = raid.RaidObject.RaidId,
-                Transaction = transaction,
+                RaidId = raidData.Id,
                 TransactionId = transaction.Id
             };
-            _epgpRepository.PostRaidItem(raidItem);
+            _dbContext.RaidItems.Add(raidItem);
+            _dbContext.SaveChanges();
         }
 
         private EpgpTransaction GetTransaction(EpgpAlias alias, int value, string memo, TransactionType transactionType)
@@ -150,7 +172,7 @@ namespace BuzzBot.Epgp
 
         public bool Set([NotNull] string aliasName, int ep, int gp, string memo = "Manual Value Correction")
         {
-            var alias = _epgpRepository.GetAlias(aliasName);
+            var alias = _aliasService.GetAlias(aliasName);
             if (alias == null) return false;
             var epChange = ep - alias.EffortPoints;
             var gpChange = gp - alias.GearPoints;
@@ -173,7 +195,7 @@ namespace BuzzBot.Epgp
         public void Decay(int decayPercent, string epgpFlag)
         {
             var asPercent = (double)decayPercent / 100;
-            var aliases = _epgpRepository.GetAliases();
+            var aliases = _dbContext.Aliases.ToList();
             foreach (var alias in aliases)
             {
                 var epDecay = -(int)Math.Round(alias.EffortPoints * asPercent, MidpointRounding.AwayFromZero);

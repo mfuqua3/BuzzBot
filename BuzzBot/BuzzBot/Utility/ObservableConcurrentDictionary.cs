@@ -57,9 +57,11 @@ namespace BuzzBot.Utility
             // If key exists
             if (base.ContainsKey(key))
             {
+                TryGetValue(key, out var oldValue);
                 // Update value and raise event
                 value = base.AddOrUpdate(key, addValueFactory, updateValueFactory);
-                OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Replace, value));
+                TryGetValue(key, out var newValue);
+                OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Replace, new List<TValue>() { newValue }, new List<TValue> { oldValue }));
             }
             // Else if key does not exist
             else
@@ -132,19 +134,20 @@ namespace BuzzBot.Utility
             // Stores tryRemove
             // If removed
             if (!base.TryRemove(key, out value)) return false;
-                // Raise event
-                OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, value));
+            // Raise event
+            OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, value));
             // Return tryAdd
             return true;
         }
 
         public new bool TryUpdate(TKey key, TValue newValue, TValue comparisonValue)
         {
+            TryGetValue(key, out var oldValue);
             // Stores tryUpdate
             // If updated
             if (!base.TryUpdate(key, newValue, comparisonValue)) return false;
-                // Raise event
-                OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Replace, newValue));
+            // Raise event
+            OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Replace, new List<TValue> { newValue }, new List<TValue> { oldValue }));
             // Return tryUpdate
             return true;
         }

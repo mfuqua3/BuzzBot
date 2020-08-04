@@ -26,7 +26,7 @@ namespace BuzzBot.Discord.Modules
 {
 
     [Group(GroupName)]
-    public class EpgpModule : BuzzBotModuleBase<SocketCommandContext>
+    public class EpgpModule : BuzzBotModuleBase
     {
         private readonly IPriorityReportingService _priorityReportingService;
         private readonly IQueryService _queryService;
@@ -38,9 +38,10 @@ namespace BuzzBot.Discord.Modules
         private readonly IDocumentationService _documentationService;
         private IEmoteService _emoteService;
         private IAliasService _aliasService;
-        private readonly IConfiguration _configuration;
         private readonly IItemService _itemService;
         private readonly IRaidService _raidService;
+        private readonly BuzzBotDbContext _dbContext;
+        private IUserService _userService;
         public const string GroupName = "epgp";
 
         public EpgpModule(
@@ -55,8 +56,8 @@ namespace BuzzBot.Discord.Modules
             IEmoteService emoteService,
             IAliasService aliasService,
             IItemService itemService,
-            IRaidService raidService
-            IConfiguration configuration)
+            IRaidService raidService,
+            BuzzBotDbContext dbContext, IUserService userService)
         {
             _priorityReportingService = priorityReportingService;
             _queryService = queryService;
@@ -68,9 +69,10 @@ namespace BuzzBot.Discord.Modules
             _documentationService = documentationService;
             _emoteService = emoteService;
             _aliasService = aliasService;
-            _configuration = configuration;
             _itemService = itemService;
             _raidService = raidService;
+            _dbContext = dbContext;
+            _userService = userService;
         }
 
         [Priority(0)]
@@ -93,7 +95,7 @@ namespace BuzzBot.Discord.Modules
             if (item == null) return;
             var gp = _epgpCalculator.ConvertGpFromGold(raid.NexusCrystalValue) * 2;
             var activeAlias = _aliasService.GetActiveAlias(user.Id);
-            _epgpService.Gp(activeAlias, item, $"[Roll] {itemQueryString}", gp);
+            _epgpService.Gp(activeAlias, item, $"[Roll] {item.Name}", gp);
             var embed = CreateItemEmbed(item, gp);
             var userString = activeAlias.IsPrimary ? $"<@{user.Id}>" : _emoteService.GetAliasString(activeAlias, Context.Guild.Id);
             await ReplyAsync($"Assigning to {userString}", false, embed);
@@ -221,7 +223,7 @@ namespace BuzzBot.Discord.Modules
         public async Task ExportCsv()
         {
             var channel = await GetUserChannel();
-            var aliases = _repository.GetAliases().OrderByDescending(a => (double)a.EffortPoints / a.GearPoints).ToList();
+            var aliases = _dbContext.Aliases.AsQueryable().OrderByDescending(a => (double)a.EffortPoints / a.GearPoints).ToList();
             using var stream = new MemoryStream() { Capacity = 10240 };
             using var textWriter = new StreamWriter(stream) { AutoFlush = true };
             using var writer = new CsvWriter(textWriter, CultureInfo.CurrentCulture);
@@ -311,8 +313,13 @@ namespace BuzzBot.Discord.Modules
 
         [Command("gp")]
         [RequiresBotAdmin]
-        public async Task AssignGearPoints(IGuildUser user, int value) =>
-            await AssignGearPoints(user.GetAliasName(), value);
+        public async Task AssignGearPoints(IGuildUser user, int value) 
+        {
+            var alias = _aliasService.GetActiveAlias(user.Id);
+            _epgpService.Gp(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
+            var dmChannel = await GetUserChannel();
+            await dmChannel.SendMessageAsync($"{value} GP successfully granted to {_emoteService.GetAliasString(alias, Context.Guild.Id)}");
+        }
 
 
 
@@ -366,7 +373,7 @@ namespace BuzzBot.Discord.Modules
             if (ep < config.EpMinimum) ep = config.EpMinimum;
             if (gp < config.GpMinimum) gp = config.GpMinimum;
             var id = user.Id;
-            _repository.AddGuildUser(id);
+            await _userService.TryAddUser(id, Context.Guild);
             var userClass = user.GetClass();
             if (userClass == WowClass.Unknown)
             {
@@ -383,7 +390,7 @@ namespace BuzzBot.Discord.Modules
                 Name = user.GetAliasName(),
                 Id = Guid.NewGuid()
             };
-            _repository.AddAlias(alias);
+            _aliasService.AddAlias(alias);
             await ReplyAsync($"New user added with primary alias of \"{user.GetAliasName()} : {userClass}\"");
         }
         [Command("alias")]
@@ -412,69 +419,58 @@ namespace BuzzBot.Discord.Modules
                 Id = Guid.NewGuid()
             };
 
-            _repository.AddAlias(alias);
+            _aliasService.AddAlias(alias);
             _epgpService.Set(aliasName, ep, gp, "Alias initialized");
             await ReplyAsync($"New alias add to {user.GetAliasName()}: \"{aliasName} : {userClass}\"");
         }
 
-        [Command("deletealias")]
+        [Command("deletealias", RunMode = RunMode.Async)]
         [Summary("Deletes the alias from the EPGP database (but retains the user)")]
         [Remarks("delete Baxterdruid")]
         [RequiresBotAdmin]
-        public Task DeleteAlias(string aliasName)
+        public async Task DeleteAlias(string aliasName)
         {
-            Task.Run(async () =>
-            {
-                await _queryService.SendQuery(
-                    $"Are you sure you want to delete all record of {aliasName}? The user record will be retained, but all record of this alias will be purged. This can not be undone.",
-                    Context.Channel,
-                    async () =>
+            await _queryService.SendQuery(
+                $"Are you sure you want to delete all record of {aliasName}? The user record will be retained, but all record of this alias will be purged. This can not be undone.",
+                Context.Channel,
+                async () =>
+                {
+                    try
                     {
-                        try
-                        {
-                            _repository.DeleteAlias(aliasName);
-                        }
-                        catch (Exception ex)
-                        {
-                            await ReplyAsync($"Unable to successfully remove alias: {ex.Message}");
-                            return;
-                        }
+                        _aliasService.DeleteAlias(aliasName);
+                    }
+                    catch (Exception ex)
+                    {
+                        await ReplyAsync($"Unable to successfully remove alias: {ex.Message}");
+                        return;
+                    }
 
-                        await ReplyAsync("Alias removed successfully.");
-                    },
-                    async () => { await ReplyAsync("Operation cancelled"); });
-            });
-            return Task.CompletedTask;
+                    await ReplyAsync("Alias removed successfully.");
+                },
+                async () => { await ReplyAsync("Operation cancelled"); });
         }
 
-        [Command("deleteuser")]
+        [Command("deleteuser", RunMode = RunMode.Async)]
         [Summary("Deletes the user (and all aliases) from the EPGP database")]
         [Remarks("delete @Marathonz")]
         [RequiresBotAdmin]
-        public Task DeleteUser(IGuildUser user)
+        public async Task DeleteUser(IGuildUser user)
         {
-            Task.Run(async () =>
-            {
-                await _queryService.SendQuery(
-                    $"Are you sure you want to delete all record of {user.GetAliasName()} and their aliases? This can not be undone.",
-                    Context.Channel,
-                    async () =>
+            await _queryService.SendQuery(
+                $"Are you sure you want to delete all record of {user.GetAliasName()} and their aliases? This can not be undone.",
+                Context.Channel,
+                async () =>
+                {
+                    if (await _userService.TryDeleteUser(user.Id))
                     {
-                        try
-                        {
-                            _repository.DeleteGuildUser(user.Id);
-                        }
-                        catch (Exception ex)
-                        {
-                            await ReplyAsync($"Unable to successfully remove user: {ex.Message}");
-                            return;
-                        }
-
                         await ReplyAsync("User removed successfully.");
-                    },
-                    async () => { await ReplyAsync("Operation cancelled"); });
-            });
-            return Task.CompletedTask;
+                        return;
+
+                    }
+                    await ReplyAsync($"Unable to successfully remove user");
+
+                },
+                async () => { await ReplyAsync("Operation cancelled"); });
         }
         [Command("remove_records", RunMode = RunMode.Async)]
         [RequiresBotAdmin]
@@ -483,9 +479,8 @@ namespace BuzzBot.Discord.Modules
             var dateTime = new DateTime(year, month, day, hour, minute, 0);
             await _queryService.SendQuery($"Delete all records after {dateTime}?", Context.Channel, async () =>
                 {
-                    await using var context = new BuzzBotDbContext(_configuration);
-                    var transactions = (context.EpgpTransactions as IQueryable<EpgpTransaction>).Where(t => t.TransactionDateTime >= dateTime)
-                        .Include(t=>t.Alias)
+                    var transactions = (_dbContext.EpgpTransactions as IQueryable<EpgpTransaction>).Where(t => t.TransactionDateTime >= dateTime)
+                        .Include(t => t.Alias)
                         .ToList();
                     foreach (var transaction in transactions)
                     {
@@ -506,10 +501,10 @@ namespace BuzzBot.Discord.Modules
                         }
 
                         transaction.Alias = null;
-                        context.EpgpTransactions.Remove(transaction);
+                        _dbContext.EpgpTransactions.Remove(transaction);
                     }
 
-                    context.SaveChanges();
+                    _dbContext.SaveChanges();
                     return;
                 },
                 async () => await ReplyAsync("Operation cancelled"));

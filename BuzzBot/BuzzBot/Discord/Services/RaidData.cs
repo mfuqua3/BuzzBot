@@ -4,7 +4,7 @@ using Discord;
 
 namespace BuzzBot.Discord.Services
 {
-    public class RaidData:IDisposable
+    public class RaidData
     {
         public ulong ServerId { get; }
         public IUserMessage Message { get; }
@@ -18,11 +18,6 @@ namespace BuzzBot.Discord.Services
             Message = message;
             RaidObject = raidObject;
             ServerId = serverId;
-        }
-
-        public void Dispose()
-        {
-            RaidMonitor?.Dispose();
         }
     }
 }

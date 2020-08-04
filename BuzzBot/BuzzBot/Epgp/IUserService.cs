@@ -9,17 +9,33 @@ namespace BuzzBot.Epgp
     public interface IUserService
     {
         Task<bool> TryAddUser(ulong userId, IGuild guild);
+        bool UserExists(ulong userId);
+        Task<bool> TryDeleteUser(ulong userId);
     }
 
     public class UserService : IUserService
     {
         private readonly IAliasService _aliasService;
-        private EpgpRepository _epgpRepository;
+        private readonly BuzzBotDbContext _dbContext;
 
-        public UserService(IAliasService aliasService, EpgpRepository epgpRepository)
+        public UserService(IAliasService aliasService, BuzzBotDbContext dbContext)
         {
             _aliasService = aliasService;
-            _epgpRepository = epgpRepository;
+            _dbContext = dbContext;
+        }
+
+        public bool UserExists(ulong userId)
+        {
+            return _dbContext.GuildUsers.Find(userId) != null;
+        }
+
+        public async Task<bool> TryDeleteUser(ulong userId)
+        {
+            var user = await _dbContext.GuildUsers.FindAsync(userId);
+            if (user == null) return false;
+            _dbContext.GuildUsers.Remove(user);
+            await _dbContext.SaveChangesAsync();
+            return true;
         }
 
         public async Task<bool> TryAddUser(ulong userId, IGuild guild)
@@ -41,7 +57,7 @@ namespace BuzzBot.Epgp
                     Name = guildUser.GetAliasName(),
                     Id = Guid.NewGuid()
                 };
-                _epgpRepository.AddGuildUser(userId);
+                _dbContext.GuildUsers.Add(new GuildUser { Id = userId });
                 _aliasService.AddAlias(alias);
                 return true;
             }

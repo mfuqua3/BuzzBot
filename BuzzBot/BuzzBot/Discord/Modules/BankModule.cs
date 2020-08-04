@@ -13,7 +13,7 @@ using Microsoft.Extensions.Configuration;
 namespace BuzzBot.Discord.Modules
 {
     [Group(GroupName)]
-    public class BankModule : BuzzBotModuleBase<SocketCommandContext>
+    public class BankModule : BuzzBotModuleBase
     {
         private readonly ClassicGuildBankClient _client;
         private readonly CommandService _commandService;

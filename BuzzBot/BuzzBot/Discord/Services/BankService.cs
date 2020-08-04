@@ -14,17 +14,16 @@ namespace BuzzBot.Discord.Services
     }
     public class BankService:IBankService
     {
-        private readonly IDbContextFactory _dbContextFactory;
+        private readonly BuzzBotDbContext _dbContext;
 
-        public BankService(IDbContextFactory dbContextFactory)
+        public BankService(BuzzBotDbContext dbContext)
         {
-            _dbContextFactory = dbContextFactory;
+            _dbContext = dbContext;
         }
 
         public void AddOrUpdateGuild(Guild guild)
         {
-            using var context = _dbContextFactory.GetNew();
-            var existingGuild = context.Guilds
+            var existingGuild = _dbContext.Guilds
                 .Include(g => g.Characters)
                 .ThenInclude(c => c.Bags)
                 .ThenInclude(b => b.BagSlots)
@@ -37,26 +36,25 @@ namespace BuzzBot.Discord.Services
                     {
                         foreach (var bagSlot in bag.BagSlots)
                         {
-                            context.BagSlots.Remove(bagSlot);
+                            _dbContext.BagSlots.Remove(bagSlot);
                         }
 
-                        context.Bags.Remove(bag);
+                        _dbContext.Bags.Remove(bag);
                     }
 
-                    context.Characters.Remove(character);
+                    _dbContext.Characters.Remove(character);
                 }
 
-                context.Guilds.Remove(existingGuild);
+                _dbContext.Guilds.Remove(existingGuild);
             }
 
-            context.Guilds.Add(guild);
-            context.SaveChanges();
+            _dbContext.Guilds.Add(guild);
+            _dbContext.SaveChanges();
         }
 
         public List<Character> GetBankCharacters()
         {
-            using var context = _dbContextFactory.GetNew();
-            return context.Characters
+            return _dbContext.Characters
                 .Include(c => c.Bags)
                 .ThenInclude(b => b.BagSlots)
                 .ThenInclude(bs => bs.Item)
@@ -65,8 +63,7 @@ namespace BuzzBot.Discord.Services
 
         public int GetTotalGold()
         {
-            using var context = _dbContextFactory.GetNew();
-            return context.Characters.Sum(c => c.Gold);
+            return _dbContext.Characters.Sum(c => c.Gold);
         }
     }
 }

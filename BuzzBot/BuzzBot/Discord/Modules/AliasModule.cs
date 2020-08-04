@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,7 +15,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace BuzzBot.Discord.Modules
 {
-    public class AliasModule : BuzzBotModuleBase<SocketCommandContext>
+    public class AliasModule : BuzzBotModuleBase
     {
         private IPageService _pageService;
         private readonly IAliasService _aliasService;
@@ -40,7 +41,7 @@ namespace BuzzBot.Discord.Modules
         [RequiresBotAdmin]
         public async Task Switch(IGuildUser user)
         {
-            if (user == null) return;
+            if (user == null);
             var aliases = _aliasService.GetAliases(user.Id);
             if (aliases.Count <= 1)
             {
@@ -64,6 +65,7 @@ namespace BuzzBot.Discord.Modules
             _aliasService.SetActiveAlias(user.Id, aliases[selection].Name);
             _aliasService.ActiveAliasChanged -= SendSwitchConfirmation;
             await userChannel.SendMessageAsync($"Switch to {GetAliasString(aliases[selection])} confirmed.");
+            return;
         }
 
         private async void SendSwitchConfirmation(object sender, AliasChangeEventArgs e)

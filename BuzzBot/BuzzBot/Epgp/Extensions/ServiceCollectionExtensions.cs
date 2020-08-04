@@ -9,13 +9,13 @@ namespace BuzzBot.Epgp.Extensions
         public static IServiceCollection AddEpgpComponents(this IServiceCollection services)
         {
             services.AddSingleton<IEpgpCalculator, EpgpCalculator>()
-                .AddTransient<IRaidFactory, RaidFactory>()
+                .AddScoped<IRaidFactory, RaidFactory>()
                 .AddSingleton<IEpgpConfigurationService, EpgpConfigurationService>()
-                .AddSingleton<IEpgpService, EpgpService>()
-                .AddTransient<IRaidMonitorFactory, RaidMonitorFactory>()
-                .AddSingleton<IAliasService, AliasService>()
+                .AddScoped<IEpgpService, EpgpService>()
+                .AddScoped<IRaidMonitorFactory, RaidMonitorFactory>()
+                .AddScoped<IAliasService, AliasService>()
                 .AddSingleton<NexusHubClient>()
-                .AddTransient<IUserService, UserService>()
+                .AddScoped<IUserService, UserService>()
                 .AddSingleton<IRaidRepository, RaidRepository>();
             return services;
         }

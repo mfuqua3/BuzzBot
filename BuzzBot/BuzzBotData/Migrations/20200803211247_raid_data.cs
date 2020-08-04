@@ -46,37 +46,38 @@ namespace BuzzBotData.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "RaidItem",
+                name: "RaidItems",
                 columns: table => new
                 {
+                    Id = table.Column<Guid>(nullable: false),
+                    ItemId = table.Column<int>(nullable: false),
                     RaidId = table.Column<Guid>(nullable: false),
                     TransactionId = table.Column<Guid>(nullable: false),
-                    ItemId = table.Column<int>(nullable: false),
                     AwardedAliasId = table.Column<Guid>(nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_RaidItem", x => new { x.RaidId, x.TransactionId });
+                    table.PrimaryKey("PK_RaidItems", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_RaidItem_Aliases_AwardedAliasId",
+                        name: "FK_RaidItems_Aliases_AwardedAliasId",
                         column: x => x.AwardedAliasId,
                         principalTable: "Aliases",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_RaidItem_Item_ItemId",
+                        name: "FK_RaidItems_Item_ItemId",
                         column: x => x.ItemId,
                         principalTable: "Item",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_RaidItem_Raids_RaidId",
+                        name: "FK_RaidItems_Raids_RaidId",
                         column: x => x.RaidId,
                         principalTable: "Raids",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_RaidItem_EpgpTransactions_TransactionId",
+                        name: "FK_RaidItems_EpgpTransactions_TransactionId",
                         column: x => x.TransactionId,
                         principalTable: "EpgpTransactions",
                         principalColumn: "Id",
@@ -89,19 +90,23 @@ namespace BuzzBotData.Migrations
                 column: "AliasId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_RaidItem_AwardedAliasId",
-                table: "RaidItem",
+                name: "IX_RaidItems_AwardedAliasId",
+                table: "RaidItems",
                 column: "AwardedAliasId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_RaidItem_ItemId",
-                table: "RaidItem",
-                column: "ItemId",
-                unique: true);
+                name: "IX_RaidItems_ItemId",
+                table: "RaidItems",
+                column: "ItemId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_RaidItem_TransactionId",
-                table: "RaidItem",
+                name: "IX_RaidItems_RaidId",
+                table: "RaidItems",
+                column: "RaidId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RaidItems_TransactionId",
+                table: "RaidItems",
                 column: "TransactionId",
                 unique: true);
         }
@@ -112,7 +117,7 @@ namespace BuzzBotData.Migrations
                 name: "RaidAlias");
 
             migrationBuilder.DropTable(
-                name: "RaidItem");
+                name: "RaidItems");
 
             migrationBuilder.DropTable(
                 name: "Raids");

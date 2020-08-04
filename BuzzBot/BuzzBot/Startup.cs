@@ -73,6 +73,7 @@ namespace BuzzBot
             services.GetRequiredService<LogService>();
             await services.GetRequiredService<CommandHandlingService>().InitializeAsync(services);
 
+
             await client.LoginAsync(TokenType.Bot, Configuration["token"]);
             await client.StartAsync();
 

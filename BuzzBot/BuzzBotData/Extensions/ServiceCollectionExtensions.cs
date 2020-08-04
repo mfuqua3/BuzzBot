@@ -7,8 +7,7 @@ namespace BuzzBotData.Extensions
     {
         public static IServiceCollection AddData(this IServiceCollection services)
         {
-            services.AddTransient<BuzzBotDbContext>()
-                .AddTransient<IDbContextFactory, DbContextFactory>();
+            services.AddScoped<BuzzBotDbContext>();
             return services;
         }
     }

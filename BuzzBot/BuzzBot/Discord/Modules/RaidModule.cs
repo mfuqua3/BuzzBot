@@ -14,7 +14,7 @@ using Discord.Commands;
 namespace BuzzBot.Discord.Modules
 {
     [Group(GroupName)]
-    public class RaidModule : BuzzBotModuleBase<SocketCommandContext>
+    public class RaidModule : BuzzBotModuleBase
     {
         private const string GroupName = @"raid";
         private readonly IRaidService _raidService;
@@ -70,10 +70,7 @@ namespace BuzzBot.Discord.Modules
             }
             raid.Name = templateId;
             raid.RaidLeader = Context.User.Id;
-            using (_raidService)
-            {
-                await _raidService.PostRaid(Context.Channel, raid);
-            }
+            await _raidService.PostRaid(Context.Channel, raid);
         }
         [Command("template")]
         [Summary("Prints a summary of all configured raid templates.")]

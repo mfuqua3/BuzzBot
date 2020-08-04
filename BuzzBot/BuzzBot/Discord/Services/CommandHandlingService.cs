@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using BuzzBot.Discord.Modules;
 using BuzzBot.Discord.Utility;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BuzzBot.Discord.Services
 {
@@ -22,6 +24,7 @@ namespace BuzzBot.Discord.Services
         {
             _discord = discord;
             _commands = commands;
+            _commands.CommandExecuted += CommandExecuted;
             _provider = provider;
             _channels = configuration.GetSection("authorizedChannels").AsEnumerable()
                 .Where(c => ulong.TryParse(c.Value, out _)).Select(c => ulong.Parse(c.Value)).ToHashSet();
@@ -29,11 +32,19 @@ namespace BuzzBot.Discord.Services
             _discord.MessageReceived += MessageReceived;
         }
 
+        private Task CommandExecuted(Optional<CommandInfo> commandInfo, ICommandContext context, IResult result)
+        {
+            var scopedContext = context as ScopedCommandContext;
+            scopedContext?.ServiceScope.Dispose();
+            return Task.CompletedTask;
+        }
+
         public async Task InitializeAsync(IServiceProvider provider)
         {
             _provider = provider;
             _commands.AddTypeReader<IMentionable>(new MentionableTypeReader(), true);
-            await _commands.AddModulesAsync(Assembly.GetExecutingAssembly(), _provider);
+            using var scope = _provider.CreateScope();
+            await _commands.AddModulesAsync(Assembly.GetExecutingAssembly(), scope.ServiceProvider);
             // Add additional initialization code here...
         }
 
@@ -48,12 +59,15 @@ namespace BuzzBot.Discord.Services
             if (!message.HasCharPrefix('!', ref argPos) ||
                 message.Author.IsBot) return;
 
-            var context = new SocketCommandContext(_discord, message);
-            var result = await _commands.ExecuteAsync(context, argPos, _provider, MultiMatchHandling.Best);
+
+            var scope = _provider.CreateScope();
+            var context = new ScopedCommandContext(scope, _discord, message);
+            var result = await _commands.ExecuteAsync(context, argPos, scope.ServiceProvider, MultiMatchHandling.Best);
 
             if (result.Error.HasValue
                 /*&& result.Error.Value != CommandError.UnknownCommand*/)
                 await context.Channel.SendMessageAsync(result.ToString());
         }
+
     }
 }

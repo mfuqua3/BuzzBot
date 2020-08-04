@@ -15,6 +15,7 @@ namespace BuzzBotData.Data
 
     public class RaidItem
     {
+        public Guid Id { get; set; }
         public Item Item { get; set; }
         public int ItemId { get; set; }
         public Raid Raid { get; set; }

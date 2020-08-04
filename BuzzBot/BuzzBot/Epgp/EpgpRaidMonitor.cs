@@ -10,6 +10,7 @@ using BuzzBot.Discord.Services;
 using BuzzBot.Discord.Utility;
 using BuzzBotData.Data;
 using Discord;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
 namespace BuzzBot.Epgp
@@ -20,14 +21,17 @@ namespace BuzzBot.Epgp
         private CancellationTokenSource _cts;
         private readonly IEmoteService _emoteService;
         private RaidData _raidData;
+        private readonly BuzzBotDbContext _dbContext;
         private bool _restart;
+        private IAliasService _aliasService;
 
-        public EpgpRaidMonitor(IEpgpService epgpService, IConfiguration configuration, IEmoteService emoteService, RaidData raidData)
+        public EpgpRaidMonitor(IEpgpService epgpService,  IEmoteService emoteService, RaidData raidData, BuzzBotDbContext dbContext, IAliasService aliasService)
         {
             _epgpService = epgpService;
-            _epgpRepository = epgpRepository;
             _emoteService = emoteService;
             _raidData = raidData;
+            _dbContext = dbContext;
+            _aliasService = aliasService;
             _cts = new CancellationTokenSource();
             _raidData.RaidObject.PropertyChanged += RaidPropertyChanged;
         }
@@ -113,7 +117,6 @@ namespace BuzzBot.Epgp
             award = AwardEp(_raidData.RaidObject.EndBonus, "Raid End Bonus", GetAllUsers(_raidData.RaidObject));
             await messageChannel.SendMessageAsync("", false, award);
             await messageChannel.SendMessageAsync("", false, BuildRaidSummary());
-            Dispose();
         }
 
         private Embed AwardEp(int value, string memo, List<RaidParticipant> participants)
@@ -165,7 +168,11 @@ namespace BuzzBot.Epgp
 
         private Embed BuildRaidSummary()
         {
-            var raid = _epgpRepository.GetRaid(_raidData.RaidObject.RaidId);
+            var raid = _dbContext.Raids
+                .Include(r=>r.Loot).ThenInclude(ri=>ri.Item)
+                .Include(r => r.Loot).ThenInclude(ri => ri.Transaction)
+                .FirstOrDefault(r=>r.Id == _raidData.RaidObject.RaidId);
+            //var raid = _epgpRepository.GetRaid(_raidData.RaidObject.RaidId);
             var embedBuilder = new EmbedBuilder()
                 .WithTitle("Raid Summary")
                 .AddField("🌅 Start Time", raid.StartTime.ToEasternTime(), true)
@@ -175,11 +182,11 @@ namespace BuzzBot.Epgp
             var lootRecipients = raid.Loot.GroupBy(l => l.AwardedAliasId);
             foreach (var recipient in lootRecipients)
             {
-                var alias = _epgpRepository.GetAlias(recipient.Key);
+                var alias = _aliasService.GetAlias(recipient.Key);
                 var itemSb = new StringBuilder();
                 foreach (var raidItem in recipient)
                 {
-                    itemSb.AppendLine($"{raidItem.Item.Name} - {raidItem.Transaction.Value} GP");
+                    itemSb.AppendLine($"{raidItem.Item.Name}");
                 }
 
                 embedBuilder.AddField(_emoteService.GetAliasString(alias, _raidData.ServerId), itemSb.ToString(), true);
@@ -203,7 +210,7 @@ namespace BuzzBot.Epgp
         }
 
         private IEnumerable<EpgpAlias> GetAliases(IEnumerable<RaidParticipant> participants) =>
-            participants.Select(p => _epgpRepository.GetAlias(p.Alias));
+            participants.Select(p => _aliasService.GetAlias(p.Alias));
 
         public void Dispose()
         {

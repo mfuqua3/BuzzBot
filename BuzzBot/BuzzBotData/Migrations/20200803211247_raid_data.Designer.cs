@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BuzzBotData.Migrations
 {
     [DbContext(typeof(BuzzBotDbContext))]
-    [Migration("20200801225532_raid_data")]
+    [Migration("20200803211247_raid_data")]
     partial class raid_data
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -346,10 +346,8 @@ namespace BuzzBotData.Migrations
 
             modelBuilder.Entity("BuzzBotData.Data.RaidItem", b =>
                 {
-                    b.Property<Guid>("RaidId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("TransactionId")
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("AwardedAliasId")
@@ -358,17 +356,24 @@ namespace BuzzBotData.Migrations
                     b.Property<int>("ItemId")
                         .HasColumnType("INTEGER");
 
-                    b.HasKey("RaidId", "TransactionId");
+                    b.Property<Guid>("RaidId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TransactionId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
 
                     b.HasIndex("AwardedAliasId");
 
-                    b.HasIndex("ItemId")
-                        .IsUnique();
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("RaidId");
 
                     b.HasIndex("TransactionId")
                         .IsUnique();
 
-                    b.ToTable("RaidItem");
+                    b.ToTable("RaidItems");
                 });
 
             modelBuilder.Entity("BuzzBotData.Data.Transaction", b =>
@@ -523,8 +528,8 @@ namespace BuzzBotData.Migrations
                         .IsRequired();
 
                     b.HasOne("BuzzBotData.Data.Item", "Item")
-                        .WithOne()
-                        .HasForeignKey("BuzzBotData.Data.RaidItem", "ItemId")
+                        .WithMany("RaidItems")
+                        .HasForeignKey("ItemId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

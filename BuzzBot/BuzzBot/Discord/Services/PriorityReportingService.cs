@@ -15,29 +15,24 @@ namespace BuzzBot.Discord.Services
 
     public class PriorityReportingService : IPriorityReportingService
     {
-        private readonly EpgpRepository _epgpRepository;
+        private readonly BuzzBotDbContext _dbContext;
         private readonly IPageService _pageService;
 
-        public PriorityReportingService(EpgpRepository epgpRepository, IPageService pageService)
+        public PriorityReportingService(BuzzBotDbContext dbContext, IPageService pageService)
         {
-            _epgpRepository = epgpRepository;
+            _dbContext = dbContext;
             _pageService = pageService;
         }
 
         public async Task ReportAll(IMessageChannel messageChannel)
         {
-            var aliases = _epgpRepository.GetAliases()
-                .Where(a => a != null).
-                OrderByDescending(a => (double)a.EffortPoints / a.GearPoints);
+            var aliases = _dbContext.Aliases.ToList().OrderByDescending(a => (double)a.EffortPoints / a.GearPoints).ToList();
             await Report(messageChannel, aliases);
         }
 
         public async Task ReportAliases(IMessageChannel messageChannel, params string[] names)
         {
-            var aliases =  names
-                    .Select(name => _epgpRepository.GetAlias(name))
-                    .Where(a => a != null)
-                    .OrderByDescending(a => (double)a.EffortPoints / a.GearPoints);
+            var aliases = _dbContext.Aliases.AsQueryable().Where(a => names.Contains(a.Name)).ToList();
             await Report(messageChannel, aliases);
         }
 
@@ -56,8 +51,8 @@ namespace BuzzBot.Discord.Services
             {
                 formatBuilder.AddRow(new[]
                 {
-                    alias.Name, 
-                    alias.EffortPoints.ToString(), 
+                    alias.Name,
+                    alias.EffortPoints.ToString(),
                     alias.GearPoints.ToString(),
                     ((double) alias.EffortPoints / alias.GearPoints).ToString("F2")
                 });
