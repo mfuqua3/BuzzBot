@@ -2,24 +2,23 @@
 using System.Threading;
 using System.Threading.Tasks;
 using BuzzBotData.Data;
-using BuzzBotData.Repositories;
 using Discord;
 
 namespace BuzzBot.Discord.Services
 {
     public class ItemService : IItemService
     {
-        private readonly ItemRepository _itemRepository;
         private readonly IQueryService _queryService;
+        private readonly BuzzBotDbContext _dbContext;
 
-        public ItemService(ItemRepository itemRepository, IQueryService queryService)
+        public ItemService(IQueryService queryService, BuzzBotDbContext dbContext)
         {
-            _itemRepository = itemRepository;
             _queryService = queryService;
+            _dbContext = dbContext;
         }
         public async Task<Item> TryGetItem(string queryString, IMessageChannel queryChannel)
         {
-            var items = _itemRepository.GetItems(queryString).OrderByDescending(itm => itm.ItemLevel).ToList();
+            var items = _dbContext.Items.AsQueryable().Where(itm => itm.Name.Contains(queryString)).ToList();
             if (items.Count == 0)
             {
                 await queryChannel.SendMessageAsync($"\"{queryString}\" returned no results.");

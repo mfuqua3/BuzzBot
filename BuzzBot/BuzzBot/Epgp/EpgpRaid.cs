@@ -1,24 +1,76 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Security.Policy;
+using BuzzBot.Utility;
 
 namespace BuzzBot.Epgp
 {
-    public class EpgpRaid
+    public class EpgpRaid:ViewModel
     {
-        public int NexusCrystalValue { get; set; }
-        public bool Started { get; set; }
-        public DateTime StartTime { get; set; }
-        public int StartBonus { get; set; }
-        public int EndBonus { get; set; }
-        public int TimeBonus { get; set; }
-        public TimeSpan TimeBonusDuration { get; set; }
-        public TimeSpan Duration { get; set; }
-        public ulong RaidLeader { get; set; }
-        public int Capacity { get; set; }
+        public Guid RaidId
+        {
+            get => Get<Guid>();
+            set => Set(value);
+        }
+        public string Name
+        {
+            get => Get<string>();
+            set => Set(value);
+        }
+        public int NexusCrystalValue
+        {
+            get => Get<int>();
+            set => Set(value);
+        }
+        public bool Started
+        {
+            get => Get<bool>();
+            set => Set(value);
+        }
+        public DateTime StartTime
+        {
+            get => Get<DateTime>();
+            set => Set(value);
+        }
+        public int StartBonus
+        {
+            get => Get<int>();
+            set => Set(value);
+        }
+        public int EndBonus
+        {
+            get => Get<int>();
+            set => Set(value);
+        }
+        public int TimeBonus
+        {
+            get => Get<int>();
+            set => Set(value);
+        }
+        public TimeSpan TimeBonusDuration
+        {
+            get => Get<TimeSpan>();
+            set => Set(value);
+        }
+        public TimeSpan Duration
+        {
+            get => Get<TimeSpan>();
+            set => Set(value);
+        }
+        public ulong RaidLeader
+        {
+            get => Get<ulong>();
+            set => Set(value);
+        }
+        public int Capacity
+        {
+            get => Get<int>();
+            set => Set(value);
+        }
         public int Joined => Participants.Count(p => p.Value.Role != Role.Bench);
-        public ConcurrentDictionary<ulong, RaidParticipant> Participants { get; set; } = new ConcurrentDictionary<ulong, RaidParticipant>();
+        public ObservableConcurrentDictionary<ulong, RaidParticipant> Participants { get; set; } = new ObservableConcurrentDictionary<ulong, RaidParticipant>();
     }
 }

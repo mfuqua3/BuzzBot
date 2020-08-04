@@ -6,7 +6,7 @@ using Discord.WebSocket;
 
 namespace BuzzBot.Discord.Modules
 {
-    public class AdminModule:ModuleBase<SocketCommandContext>
+    public class AdminModule:BuzzBotModuleBase
     {
         private readonly IAdministrationService _administrationService;
 

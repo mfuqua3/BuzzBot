@@ -6,43 +6,44 @@ using System.Threading.Tasks;
 using BuzzBot.ClassicGuildBank.Buzz;
 using BuzzBot.Discord.Services;
 using BuzzBot.Discord.Utility;
-using BuzzBotData.Repositories;
 using Discord;
 using Discord.Commands;
+using Microsoft.Extensions.Configuration;
 
 namespace BuzzBot.Discord.Modules
 {
     [Group(GroupName)]
-    public class BankModule : BuzzBotModuleBase<SocketCommandContext>
+    public class BankModule : BuzzBotModuleBase
     {
         private readonly ClassicGuildBankClient _client;
         private readonly CommandService _commandService;
         private readonly ItemRequestService _itemRequestService;
         private readonly IAdministrationService _administrationService;
-        private readonly GuildBankRepository _bankRepository;
         private readonly IPageService _pageService;
         private readonly IDocumentationService _documentationService;
+        private readonly IBankService _bankService;
         public const string GroupName = "bank";
         public BankModule(
             ClassicGuildBankClient client, 
             CommandService commandService, 
             ItemRequestService itemRequestService,
             IAdministrationService administrationService, 
-            GuildBankRepository bankRepository,
-            IPageService pageService, IDocumentationService documentationService)
+            IPageService pageService, 
+            IDocumentationService documentationService,
+            IBankService bankService)
         {
             _client = client;
             _commandService = commandService;
             _itemRequestService = itemRequestService;
             _administrationService = administrationService;
-            _bankRepository = bankRepository;
             _pageService = pageService;
             _documentationService = documentationService;
+            _bankService = bankService;
         }
         [Command("all")]
         public async Task All()
         {
-            var characters = _bankRepository.GetCharacters();
+            var characters = _bankService.GetBankCharacters();
             var pageBuilder = new PageFormatBuilder();
             pageBuilder.AddColumn("Item Name")
                 .AddColumn("Quantity")
@@ -136,7 +137,7 @@ namespace BuzzBot.Discord.Modules
         [Summary("Returns the total gold value available in the guild bank.")]
         public async Task Gold()
         {
-            var totalCopper = _bankRepository.GetTotalGold();
+            var totalCopper = _bankService.GetTotalGold();
             var gold = (int)Math.Floor((double) totalCopper / 10000);
             totalCopper -= gold*10000;
             var silver = (int)Math.Floor((double) totalCopper / 100);
@@ -175,7 +176,7 @@ namespace BuzzBot.Discord.Modules
             {
                 var characters = await _client.GetCharacters(guild._Id);
                 guild.Characters = characters;
-                _bankRepository.AddOrUpdateGuild(guild);
+                _bankService.AddOrUpdateGuild(guild);
             }
 
             await ReplyAsync("Database successfully synced with ClassicGuildBank server");

@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using BuzzBot.Discord.Utility;
-using BuzzBotData.Repositories;
+using BuzzBotData.Data;
 using Discord;
+using Microsoft.EntityFrameworkCore;
 
 namespace BuzzBot.Discord.Services
 {
@@ -15,16 +17,18 @@ namespace BuzzBot.Discord.Services
     public class AuditService : IAuditService
     {
         private readonly IPageService _pageService;
-        private readonly EpgpRepository _epgpRepository;
+        private readonly BuzzBotDbContext _dbContext;
 
-        public AuditService(IPageService pageService, EpgpRepository epgpRepository)
+        public AuditService(IPageService pageService, BuzzBotDbContext dbContext)
         {
             _pageService = pageService;
-            _epgpRepository = epgpRepository;
+            _dbContext = dbContext;
         }
         public async Task Audit(string aliasId, IMessageChannel messageChannel)
         {
-            var transactions = _epgpRepository.GetTransactions(aliasId).OrderByDescending(t => t.TransactionDateTime).ToList();
+            var transactions = _dbContext.Aliases.Include(a => a.Transactions).FirstOrDefault(a => a.Name == aliasId)?
+                .Transactions.OrderByDescending(t => t.TransactionDateTime).ToList();
+            //var transactions = _epgpRepository.GetTransactions(aliasId).OrderByDescending(t => t.TransactionDateTime).ToList();
             var builder = new PageFormatBuilder()
                 .AddColumn("Time (UTC)")
                 .AddColumn("Type")
@@ -33,7 +37,7 @@ namespace BuzzBot.Discord.Services
                 .AddColumn("Memo")
                 .AlternateRowColors();
 
-            if (!transactions.Any())
+            if (transactions==null || !transactions.Any())
             {
                 builder.AddRow(new[] { "", "", "", "", "" });
             }

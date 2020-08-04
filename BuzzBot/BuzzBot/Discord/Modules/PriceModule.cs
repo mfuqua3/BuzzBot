@@ -5,7 +5,7 @@ using Discord.Commands;
 
 namespace BuzzBot.Discord.Modules
 {
-    public class PriceModule:BuzzBotModuleBase<SocketCommandContext>
+    public class PriceModule:BuzzBotModuleBase
     {
         private readonly IItemService _itemService;
         private readonly NexusHubClient _nexusHubClient;

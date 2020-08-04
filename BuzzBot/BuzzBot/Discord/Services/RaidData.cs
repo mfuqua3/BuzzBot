@@ -1,4 +1,5 @@
-﻿using BuzzBot.Epgp;
+﻿using System;
+using BuzzBot.Epgp;
 using Discord;
 
 namespace BuzzBot.Discord.Services
@@ -8,6 +9,7 @@ namespace BuzzBot.Discord.Services
         public ulong ServerId { get; }
         public IUserMessage Message { get; }
         public EpgpRaid RaidObject { get; }
+        public EpgpRaidMonitor RaidMonitor { get; set; }
         public ulong Id => Message.Id;
         public bool Started { get; set; }
 
