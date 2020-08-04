@@ -61,10 +61,12 @@ namespace BuzzBot.Discord.Services
                 {
                     var bagSlot = newBag.BagSlots.ToList(); 
                     newBag.BagSlots = null;
+                    newBag.ItemId = newBag.BagItem?.Id;
                     newBag.BagItem = null;
                     _dbContext.Bags.Add(newBag);
                     foreach (var newBagSlot in bagSlot)
                     {
+                        newBagSlot.ItemId = newBagSlot.Item?.Id;
                         newBagSlot.Item = null;
                         _dbContext.BagSlots.Add(newBagSlot);
                     }
