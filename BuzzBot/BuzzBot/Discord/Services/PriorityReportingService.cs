@@ -32,7 +32,7 @@ namespace BuzzBot.Discord.Services
 
         public async Task ReportAliases(IMessageChannel messageChannel, params string[] names)
         {
-            var aliases = _dbContext.Aliases.AsQueryable().Where(a => names.Contains(a.Name)).ToList();
+            var aliases = _dbContext.Aliases.AsQueryable().Where(a => names.Contains(a.Name)).ToList().OrderByDescending(a => (double)a.EffortPoints / a.GearPoints).ToList();
             await Report(messageChannel, aliases);
         }
 
