@@ -29,11 +29,15 @@ namespace BuzzBotData.Data
 
         [JsonIgnore]
         public List<Bag> Bags { get; set; }
+        [JsonIgnore]
+        public List<RaidItem> RaidItems { get; set; }
 
         [JsonIgnore]
         public List<ItemRequestDetail> ItemRequestDetails { get; set; }
 
         [JsonIgnore]
         public List<TransactionDetail> TransactionDetails { get; set; }
+        [JsonIgnore]
+        public List<LiveItemData> LiveItemData { get; set; }
     }
 }

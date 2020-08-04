@@ -20,4 +20,9 @@
         public const string PriestEmoteName = @"epgp_priest";
         public const string WarlockEmoteName = @"epgp_warlock";
     }
+
+    public static class Constants
+    {
+        public const string ConnectionStringKey = @"connectionString";
+    }
 }

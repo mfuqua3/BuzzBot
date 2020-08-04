@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using BuzzBot.Discord.Extensions;
+using BuzzBotData.Data;
 using Discord.WebSocket;
 
 namespace BuzzBot.Discord.Services
@@ -8,6 +10,7 @@ namespace BuzzBot.Discord.Services
     {
         ulong GetEmoteId(ulong serverId, string emoteName);
         string GetFullyQualifiedName(ulong serverId, string emoteName);
+        string GetAliasString(EpgpAlias alias, ulong serverId);
     }
 
     public class EmoteService : IEmoteService
@@ -39,6 +42,14 @@ namespace BuzzBot.Discord.Services
                 if (emote.Name.Equals(emoteName)) return emote.Id;
             }
             throw new ArgumentException($"No emote named \"{emoteName}\" could be located in the discord server");
+        }
+
+
+        public string GetAliasString(EpgpAlias alias, ulong serverId)
+        {
+            var emoteName = alias.Class.GetEmoteName();
+            var fullyQualifiedName = GetFullyQualifiedName(serverId, emoteName);
+            return $"{fullyQualifiedName} {alias.Name}";
         }
 
         public string GetFullyQualifiedName(ulong serverId, string emoteName)

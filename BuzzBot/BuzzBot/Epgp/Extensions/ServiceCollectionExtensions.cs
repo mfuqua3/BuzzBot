@@ -1,4 +1,5 @@
-﻿using BuzzBot.Wowhead;
+﻿using BuzzBot.NexusHub;
+using BuzzBot.Wowhead;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BuzzBot.Epgp.Extensions
@@ -8,11 +9,16 @@ namespace BuzzBot.Epgp.Extensions
         public static IServiceCollection AddEpgpComponents(this IServiceCollection services)
         {
             services.AddSingleton<IEpgpCalculator, EpgpCalculator>()
-                .AddTransient<IRaidFactory, RaidFactory>()
+                .AddScoped<IRaidFactory, RaidFactory>()
                 .AddSingleton<IEpgpConfigurationService, EpgpConfigurationService>()
-                .AddSingleton<IEpgpService, EpgpService>()
-                .AddTransient<IRaidMonitorFactory, RaidMonitorFactory>()
-                .AddSingleton<IAliasService, AliasService>();
+                .AddScoped<IEpgpService, EpgpService>()
+                .AddScoped<IRaidMonitorFactory, RaidMonitorFactory>()
+                .AddScoped<IAliasService, AliasService>()
+                .AddSingleton<NexusHubClient>()
+                .AddTransient<NexusHubItemPoller>()
+                .AddSingleton<DecayProcessor>()
+                .AddScoped<IUserService, UserService>()
+                .AddSingleton<IRaidRepository, RaidRepository>();
             return services;
         }
     }

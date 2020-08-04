@@ -151,6 +151,26 @@ namespace BuzzBotData.Migrations
                     b.ToTable("EpgpTransactions");
                 });
 
+            modelBuilder.Entity("BuzzBotData.Data.Faction", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ServerId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ServerId1")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServerId");
+
+                    b.HasIndex("ServerId1");
+
+                    b.ToTable("Factions");
+                });
+
             modelBuilder.Entity("BuzzBotData.Data.Guild", b =>
                 {
                     b.Property<Guid>("Id")
@@ -307,6 +327,118 @@ namespace BuzzBotData.Migrations
                     b.ToTable("ItemRequestDetail");
                 });
 
+            modelBuilder.Entity("BuzzBotData.Data.LiveItemData", b =>
+                {
+                    b.Property<string>("FactionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("HistoricalValue")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ItemId1")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MarketValue")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MinimumBuyout")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("NumberOfAuctions")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("FactionId", "ItemId");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("ItemId1");
+
+                    b.ToTable("LiveItemData");
+                });
+
+            modelBuilder.Entity("BuzzBotData.Data.Raid", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("EndTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartTime")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Raids");
+                });
+
+            modelBuilder.Entity("BuzzBotData.Data.RaidAlias", b =>
+                {
+                    b.Property<Guid>("RaidId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AliasId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("RaidId", "AliasId");
+
+                    b.HasIndex("AliasId");
+
+                    b.ToTable("RaidAlias");
+                });
+
+            modelBuilder.Entity("BuzzBotData.Data.RaidItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AwardedAliasId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("RaidId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TransactionId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AwardedAliasId");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("RaidId");
+
+                    b.HasIndex("TransactionId")
+                        .IsUnique();
+
+                    b.ToTable("RaidItems");
+                });
+
+            modelBuilder.Entity("BuzzBotData.Data.Server", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Servers");
+                });
+
             modelBuilder.Entity("BuzzBotData.Data.Transaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -413,6 +545,18 @@ namespace BuzzBotData.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("BuzzBotData.Data.Faction", b =>
+                {
+                    b.HasOne("BuzzBotData.Data.Server", null)
+                        .WithMany("Factions")
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("BuzzBotData.Data.Server", "Server")
+                        .WithMany()
+                        .HasForeignKey("ServerId1");
+                });
+
             modelBuilder.Entity("BuzzBotData.Data.ItemRequest", b =>
                 {
                     b.HasOne("BuzzBotData.Data.Guild", "Guild")
@@ -431,6 +575,66 @@ namespace BuzzBotData.Migrations
                     b.HasOne("BuzzBotData.Data.ItemRequest", "ItemRequest")
                         .WithMany("Details")
                         .HasForeignKey("ItemRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuzzBotData.Data.LiveItemData", b =>
+                {
+                    b.HasOne("BuzzBotData.Data.Faction", "Faction")
+                        .WithMany("ItemData")
+                        .HasForeignKey("FactionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BuzzBotData.Data.Item", null)
+                        .WithMany("LiveItemData")
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("BuzzBotData.Data.Item", "Item")
+                        .WithMany()
+                        .HasForeignKey("ItemId1");
+                });
+
+            modelBuilder.Entity("BuzzBotData.Data.RaidAlias", b =>
+                {
+                    b.HasOne("BuzzBotData.Data.EpgpAlias", "Alias")
+                        .WithMany("Raids")
+                        .HasForeignKey("AliasId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BuzzBotData.Data.Raid", "Raid")
+                        .WithMany("Participants")
+                        .HasForeignKey("RaidId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuzzBotData.Data.RaidItem", b =>
+                {
+                    b.HasOne("BuzzBotData.Data.EpgpAlias", "AwardedAlias")
+                        .WithMany("AwardedItems")
+                        .HasForeignKey("AwardedAliasId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BuzzBotData.Data.Item", "Item")
+                        .WithMany("RaidItems")
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BuzzBotData.Data.Raid", "Raid")
+                        .WithMany("Loot")
+                        .HasForeignKey("RaidId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BuzzBotData.Data.EpgpTransaction", "Transaction")
+                        .WithOne()
+                        .HasForeignKey("BuzzBotData.Data.RaidItem", "TransactionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

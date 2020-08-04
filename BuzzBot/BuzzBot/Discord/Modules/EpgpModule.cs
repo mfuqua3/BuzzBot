@@ -14,7 +14,6 @@ using BuzzBot.Discord.Services;
 using BuzzBot.Discord.Utility;
 using BuzzBot.Epgp;
 using BuzzBotData.Data;
-using BuzzBotData.Repositories;
 using CsvHelper;
 using Discord;
 using Discord.Commands;
@@ -27,51 +26,79 @@ namespace BuzzBot.Discord.Modules
 {
 
     [Group(GroupName)]
-    public class EpgpModule : BuzzBotModuleBase<SocketCommandContext>
+    public class EpgpModule : BuzzBotModuleBase
     {
-        private readonly EpgpRepository _repository;
         private readonly IPriorityReportingService _priorityReportingService;
         private readonly IQueryService _queryService;
         private readonly IEpgpService _epgpService;
         private readonly IAuditService _auditService;
-        private readonly ItemRepository _itemRepository;
         private readonly IEpgpCalculator _epgpCalculator;
         private readonly IEpgpConfigurationService _epgpConfigurationService;
         private readonly IPageService _pageService;
         private readonly IDocumentationService _documentationService;
         private IEmoteService _emoteService;
         private IAliasService _aliasService;
-        private readonly IConfiguration _configuration;
+        private readonly IItemService _itemService;
+        private readonly IRaidService _raidService;
+        private readonly BuzzBotDbContext _dbContext;
+        private IUserService _userService;
         public const string GroupName = "epgp";
 
         public EpgpModule(
-            EpgpRepository repository,
             IPriorityReportingService priorityReportingService,
             IQueryService queryService,
             IEpgpService epgpService,
             IAuditService auditService,
-            ItemRepository itemRepository,
             IEpgpCalculator epgpCalculator,
             IEpgpConfigurationService epgpConfigurationService,
             IPageService pageService,
             IDocumentationService documentationService,
             IEmoteService emoteService,
             IAliasService aliasService,
-            IConfiguration configuration)
+            IItemService itemService,
+            IRaidService raidService,
+            BuzzBotDbContext dbContext, IUserService userService)
         {
-            _repository = repository;
             _priorityReportingService = priorityReportingService;
             _queryService = queryService;
             _epgpService = epgpService;
             _auditService = auditService;
-            _itemRepository = itemRepository;
             _epgpCalculator = epgpCalculator;
             _epgpConfigurationService = epgpConfigurationService;
             _pageService = pageService;
             _documentationService = documentationService;
             _emoteService = emoteService;
             _aliasService = aliasService;
-            _configuration = configuration;
+            _itemService = itemService;
+            _raidService = raidService;
+            _dbContext = dbContext;
+            _userService = userService;
+        }
+
+        [Priority(0)]
+        [Command("rolls", RunMode = RunMode.Async)]
+        [Summary("Awards an item that has been rolled off in the game")]
+        [Remarks("rolls Azar Earthfury Bracers")]
+        public async Task AwardRoll(IGuildUser user, [Remainder] string itemQueryString)
+        {
+            EpgpRaid raid;
+            try
+            {
+                raid = _raidService.GetRaid();
+            }
+            catch (InvalidOperationException)
+            {
+                await ReplyAsync("No active raid could be found.");
+                return;
+            }
+            var item = await _itemService.TryGetItem(itemQueryString, Context.Channel);
+            if (item == null) return;
+            var gp = _epgpCalculator.ConvertGpFromGold(raid.NexusCrystalValue) * 2;
+            var activeAlias = _aliasService.GetActiveAlias(user.Id);
+            _epgpService.Gp(activeAlias, item, $"[Roll] {item.Name}", gp);
+            var embed = CreateItemEmbed(item, gp);
+            var userString = activeAlias.IsPrimary ? $"<@{user.Id}>" : _emoteService.GetAliasString(activeAlias, Context.Guild.Id);
+            await ReplyAsync($"Assigning to {userString}", false, embed);
         }
 
         [Command("decay")]
@@ -90,12 +117,6 @@ namespace BuzzBot.Discord.Modules
                 }));
             return Task.CompletedTask;
         }
-        private string GetAliasString(EpgpAlias alias)
-        {
-            var emoteName = alias.Class.GetEmoteName();
-            var fullyQualifiedName = _emoteService.GetFullyQualifiedName(Context.Guild.Id, emoteName);
-            return $"{fullyQualifiedName} {alias.Name}";
-        }
 
 
         [Command("gp", RunMode = RunMode.Async)]
@@ -105,25 +126,9 @@ namespace BuzzBot.Discord.Modules
             var isOffhand = queryString.EndsWith(" -oh");
             if (isOffhand)
                 queryString = queryString.Substring(0, queryString.Length - 4);
-            var items = _itemRepository.GetItems(queryString).OrderByDescending(itm => itm.ItemLevel).ToList();
-            if (items.Count == 0)
-            {
-                await ReplyAsync($"\"{queryString}\" returned no results.");
-                return;
-            }
-            if (items.Count == 1)
-            {
-                await GiveItemGearPoints(user, items.First(), isOffhand);
-                return;
-            }
-
-            var result = await _queryService.SendOptionSelectQuery(
-                $"\"{queryString}\" yielded multiple results. Please select below",
-                items,
-                (itm) => itm.Name,
-                Context.Channel, CancellationToken.None);
-            if (result == -1) return;
-            await GiveItemGearPoints(user, items[result], isOffhand);
+            var item = await _itemService.TryGetItem(queryString, Context.Channel);
+            if (item == null) return;
+            await GiveItemGearPoints(user, item, isOffhand);
         }
 
         [Command("cost", RunMode = RunMode.Async)]
@@ -133,30 +138,19 @@ namespace BuzzBot.Discord.Modules
             var isOffhand = queryString.EndsWith(" -oh");
             if (isHunter || isOffhand)
                 queryString = queryString.Substring(0, queryString.Length - 4);
-
-            var items = _itemRepository.GetItems(queryString).OrderByDescending(itm => itm.ItemLevel).ToList();
-            if (items.Count == 0)
-            {
-                await ReplyAsync($"\"{queryString}\" returned no results.");
-                return;
-            }
-            if (items.Count == 1)
-            {
-                await ReplyAsync("", false, CreateItemEmbed(items.First(), isHunter, isOffhand, out _));
-                return;
-            }
-            var result = await _queryService.SendOptionSelectQuery(
-                $"\"{queryString}\" yielded multiple results. Please select below",
-                items,
-                (itm) => itm.Name,
-                Context.Channel, CancellationToken.None);
-            if (result == -1) return;
-            await ReplyAsync("", false, CreateItemEmbed(items[result], isHunter, isOffhand, out _));
+            var item = await _itemService.TryGetItem(queryString, Context.Channel);
+            if (item == null) return;
+            await ReplyAsync("", false, CreateItemEmbed(item, isHunter, isOffhand, out _));
         }
 
         private Embed CreateItemEmbed(Item item, bool isHunter, bool isOffhand, out double gp)
         {
-            gp = _epgpCalculator.Calculate(item, isHunter, isOffhand);
+            gp = _epgpCalculator.CalculateItem(item, isHunter, isOffhand);
+            return CreateItemEmbed(item, gp);
+        }
+
+        private Embed CreateItemEmbed(Item item, double gp)
+        {
             var embed = new EmbedBuilder();
             embed.WithTitle($"{item.Name} : {gp:F0} GP");
             embed.WithImageUrl($"http://www.korkd.com/wow_img/{item.Id}.png");
@@ -166,10 +160,11 @@ namespace BuzzBot.Discord.Modules
         private async Task GiveItemGearPoints(IGuildUser user, Item item, bool isOffhand)
         {
             var activeAlias = _aliasService.GetActiveAlias(user.Id);
-            var embed = CreateItemEmbed(item, activeAlias.Class == Class.Hunter, isOffhand, out var value);
-            var userString = activeAlias.IsPrimary ? $"<@{user.Id}>" : GetAliasString(activeAlias);
+            var gp = _epgpCalculator.CalculateItem(item, activeAlias.Class == Class.Hunter, isOffhand);
+            var embed = CreateItemEmbed(item, gp);
+            var userString = activeAlias.IsPrimary ? $"<@{user.Id}>" : _emoteService.GetAliasString(activeAlias, Context.Guild.Id);
             await ReplyAsync($"Assigning to {userString}", false, embed);
-            _epgpService.Gp(activeAlias, (int)Math.Round(value), item.Name, TransactionType.GpFromGear);
+            _epgpService.Gp(activeAlias, item, $"[Claim] {item.Name}");
         }
 
         [Command("correct")]
@@ -228,14 +223,14 @@ namespace BuzzBot.Discord.Modules
         public async Task ExportCsv()
         {
             var channel = await GetUserChannel();
-            var aliases = _repository.GetAliases().OrderByDescending(a => (double)a.EffortPoints / a.GearPoints).ToList();
+            var aliases = _dbContext.Aliases.AsQueryable().OrderByDescending(a => (double)a.EffortPoints / a.GearPoints).ToList();
             using var stream = new MemoryStream() { Capacity = 10240 };
-            using var textWriter = new StreamWriter(stream){AutoFlush = true};
+            using var textWriter = new StreamWriter(stream) { AutoFlush = true };
             using var writer = new CsvWriter(textWriter, CultureInfo.CurrentCulture);
             {
                 //writer.WriteHeader<EpgpCsvResult>();
                 var records = aliases.Select(a => new EpgpCsvRecord()
-                { Name = a.Name, EP = a.EffortPoints, GP = a.GearPoints, PR = ((double)a.EffortPoints/a.GearPoints).ToString("F2")});
+                { Name = a.Name, EP = a.EffortPoints, GP = a.GearPoints, PR = ((double)a.EffortPoints / a.GearPoints).ToString("F2") });
                 await writer.WriteRecordsAsync(records);
             }
             var data = stream.ToArray();
@@ -283,6 +278,7 @@ namespace BuzzBot.Discord.Modules
         [Command("ep")]
         [Summary("Grants EP to the user")]
         [Remarks("ep Azar 10")]
+        [Priority(0)]
         [RequiresBotAdmin]
         public async Task AssignEffortPoints(string alias, int value)
         {
@@ -300,12 +296,13 @@ namespace BuzzBot.Discord.Modules
             var alias = _aliasService.GetActiveAlias(user.Id);
             _epgpService.Ep(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
             var dmChannel = await GetUserChannel();
-            await dmChannel.SendMessageAsync($"{value} EP successfully granted to {GetAliasString(alias)}");
+            await dmChannel.SendMessageAsync($"{value} EP successfully granted to {_emoteService.GetAliasString(alias, Context.Guild.Id)}");
         }
 
         [Command("gp")]
         [Summary("Grants GP to the user")]
         [Remarks("gp Azar 10")]
+        [Priority(0)]
         [RequiresBotAdmin]
         public async Task AssignGearPoints(string alias, int value)
         {
@@ -316,8 +313,13 @@ namespace BuzzBot.Discord.Modules
 
         [Command("gp")]
         [RequiresBotAdmin]
-        public async Task AssignGearPoints(IGuildUser user, int value) =>
-            await AssignGearPoints(user.GetAliasName(), value);
+        public async Task AssignGearPoints(IGuildUser user, int value) 
+        {
+            var alias = _aliasService.GetActiveAlias(user.Id);
+            _epgpService.Gp(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
+            var dmChannel = await GetUserChannel();
+            await dmChannel.SendMessageAsync($"{value} GP successfully granted to {_emoteService.GetAliasString(alias, Context.Guild.Id)}");
+        }
 
 
 
@@ -371,7 +373,7 @@ namespace BuzzBot.Discord.Modules
             if (ep < config.EpMinimum) ep = config.EpMinimum;
             if (gp < config.GpMinimum) gp = config.GpMinimum;
             var id = user.Id;
-            _repository.AddGuildUser(id);
+            await _userService.TryAddUser(id, Context.Guild);
             var userClass = user.GetClass();
             if (userClass == WowClass.Unknown)
             {
@@ -388,7 +390,7 @@ namespace BuzzBot.Discord.Modules
                 Name = user.GetAliasName(),
                 Id = Guid.NewGuid()
             };
-            _repository.AddAlias(alias);
+            _aliasService.AddAlias(alias);
             await ReplyAsync($"New user added with primary alias of \"{user.GetAliasName()} : {userClass}\"");
         }
         [Command("alias")]
@@ -416,69 +418,59 @@ namespace BuzzBot.Discord.Modules
                 Name = aliasName,
                 Id = Guid.NewGuid()
             };
-            _repository.AddAlias(alias);
+
+            _aliasService.AddAlias(alias);
             _epgpService.Set(aliasName, ep, gp, "Alias initialized");
             await ReplyAsync($"New alias add to {user.GetAliasName()}: \"{aliasName} : {userClass}\"");
         }
 
-        [Command("deletealias")]
+        [Command("deletealias", RunMode = RunMode.Async)]
         [Summary("Deletes the alias from the EPGP database (but retains the user)")]
         [Remarks("delete Baxterdruid")]
         [RequiresBotAdmin]
-        public Task DeleteAlias(string aliasName)
+        public async Task DeleteAlias(string aliasName)
         {
-            Task.Run(async () =>
-            {
-                await _queryService.SendQuery(
-                    $"Are you sure you want to delete all record of {aliasName}? The user record will be retained, but all record of this alias will be purged. This can not be undone.",
-                    Context.Channel,
-                    async () =>
+            await _queryService.SendQuery(
+                $"Are you sure you want to delete all record of {aliasName}? The user record will be retained, but all record of this alias will be purged. This can not be undone.",
+                Context.Channel,
+                async () =>
+                {
+                    try
                     {
-                        try
-                        {
-                            _repository.DeleteAlias(aliasName);
-                        }
-                        catch (Exception ex)
-                        {
-                            await ReplyAsync($"Unable to successfully remove alias: {ex.Message}");
-                            return;
-                        }
+                        _aliasService.DeleteAlias(aliasName);
+                    }
+                    catch (Exception ex)
+                    {
+                        await ReplyAsync($"Unable to successfully remove alias: {ex.Message}");
+                        return;
+                    }
 
-                        await ReplyAsync("Alias removed successfully.");
-                    },
-                    async () => { await ReplyAsync("Operation cancelled"); });
-            });
-            return Task.CompletedTask;
+                    await ReplyAsync("Alias removed successfully.");
+                },
+                async () => { await ReplyAsync("Operation cancelled"); });
         }
 
-        [Command("deleteuser")]
+        [Command("deleteuser", RunMode = RunMode.Async)]
         [Summary("Deletes the user (and all aliases) from the EPGP database")]
         [Remarks("delete @Marathonz")]
         [RequiresBotAdmin]
-        public Task DeleteUser(IGuildUser user)
+        public async Task DeleteUser(IGuildUser user)
         {
-            Task.Run(async () =>
-            {
-                await _queryService.SendQuery(
-                    $"Are you sure you want to delete all record of {user.GetAliasName()} and their aliases? This can not be undone.",
-                    Context.Channel,
-                    async () =>
+            await _queryService.SendQuery(
+                $"Are you sure you want to delete all record of {user.GetAliasName()} and their aliases? This can not be undone.",
+                Context.Channel,
+                async () =>
+                {
+                    if (await _userService.TryDeleteUser(user.Id))
                     {
-                        try
-                        {
-                            _repository.DeleteGuildUser(user.Id);
-                        }
-                        catch (Exception ex)
-                        {
-                            await ReplyAsync($"Unable to successfully remove user: {ex.Message}");
-                            return;
-                        }
-
                         await ReplyAsync("User removed successfully.");
-                    },
-                    async () => { await ReplyAsync("Operation cancelled"); });
-            });
-            return Task.CompletedTask;
+                        return;
+
+                    }
+                    await ReplyAsync($"Unable to successfully remove user");
+
+                },
+                async () => { await ReplyAsync("Operation cancelled"); });
         }
         [Command("remove_records", RunMode = RunMode.Async)]
         [RequiresBotAdmin]
@@ -487,9 +479,8 @@ namespace BuzzBot.Discord.Modules
             var dateTime = new DateTime(year, month, day, hour, minute, 0);
             await _queryService.SendQuery($"Delete all records after {dateTime}?", Context.Channel, async () =>
                 {
-                    await using var context = new BuzzBotDbContext(_configuration);
-                    var transactions = (context.EpgpTransactions as IQueryable<EpgpTransaction>).Where(t => t.TransactionDateTime >= dateTime)
-                        .Include(t=>t.Alias)
+                    var transactions = (_dbContext.EpgpTransactions as IQueryable<EpgpTransaction>).Where(t => t.TransactionDateTime >= dateTime)
+                        .Include(t => t.Alias)
                         .ToList();
                     foreach (var transaction in transactions)
                     {
@@ -510,10 +501,10 @@ namespace BuzzBot.Discord.Modules
                         }
 
                         transaction.Alias = null;
-                        context.EpgpTransactions.Remove(transaction);
+                        _dbContext.EpgpTransactions.Remove(transaction);
                     }
 
-                    context.SaveChanges();
+                    _dbContext.SaveChanges();
                     return;
                 },
                 async () => await ReplyAsync("Operation cancelled"));

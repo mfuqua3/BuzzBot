@@ -47,7 +47,7 @@ namespace BuzzBot.Discord.Services
         {
             _resultDictionary = new Dictionary<string, int>
             {
-                {Cancel, 0 },
+                {Cancel, -1 },
                 {Confirm,1 }
             };
             _resultDictionary = _resultDictionary.Merge(_optionsDictionary.ToDictionary(kvp => kvp.Value, kvp => kvp.Key));
@@ -107,8 +107,8 @@ namespace BuzzBot.Discord.Services
             await message.AddReactionAsync(new Emoji(Confirm));
             await message.AddReactionAsync(new Emoji(Cancel));
             var result = await AwaitQuery(query);
-            if (result == 1) await onConfirm();
-            if (result == 0) await onCancel();
+            if (result == _resultDictionary[Confirm]) await onConfirm();
+            if (result == _resultDictionary[Cancel]) await onCancel();
         }
 
         private async Task<int> AwaitQuery(Query query)

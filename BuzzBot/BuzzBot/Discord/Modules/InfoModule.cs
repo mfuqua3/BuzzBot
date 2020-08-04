@@ -2,21 +2,16 @@
 using System.Threading.Tasks;
 using BuzzBot.Discord.Services;
 using BuzzBot.Discord.Utility;
-using BuzzBotData.Repositories;
 using Discord;
 using Discord.Commands;
 
 namespace BuzzBot.Discord.Modules
 {
-    public class InfoModule : ModuleBase<SocketCommandContext>
+    public class InfoModule : BuzzBotModuleBase
     {
-        private readonly EpgpRepository _epgpRepository;
-        private readonly IPageService _pageService;
 
-        public InfoModule(EpgpRepository epgpRepository, IPageService pageService)
+        public InfoModule()
         {
-            _epgpRepository = epgpRepository;
-            _pageService = pageService;
         }
         [Command("help")]
         [Alias("?")]

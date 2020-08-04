@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -6,39 +8,40 @@ using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Services;
 using BuzzBot.Epgp;
 using BuzzBotData.Data;
-using BuzzBotData.Repositories;
 using Discord;
 using Discord.Commands;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace BuzzBot.Discord.Modules
 {
-    public class AliasModule : BuzzBotModuleBase<SocketCommandContext>
+    public class AliasModule : BuzzBotModuleBase
     {
-        private EpgpRepository _epgpRepository;
         private IPageService _pageService;
         private readonly IAliasService _aliasService;
         private readonly IEmoteService _emoteService;
         private readonly IQueryService _queryService;
+        private readonly IConfiguration _configuration;
 
         public AliasModule(
-            EpgpRepository epgpRepository,
             IPageService pageService,
             IAliasService aliasService,
             IEmoteService emoteService,
-            IQueryService queryService)
+            IQueryService queryService,
+            IConfiguration configuration)
         {
-            _epgpRepository = epgpRepository;
             _pageService = pageService;
             _aliasService = aliasService;
             _emoteService = emoteService;
             _queryService = queryService;
+            _configuration = configuration;
         }
 
         [Command("switch", RunMode = RunMode.Async)]
         [RequiresBotAdmin]
         public async Task Switch(IGuildUser user)
         {
-            if (user == null) return;
+            if (user == null);
             var aliases = _aliasService.GetAliases(user.Id);
             if (aliases.Count <= 1)
             {
@@ -62,6 +65,7 @@ namespace BuzzBot.Discord.Modules
             _aliasService.SetActiveAlias(user.Id, aliases[selection].Name);
             _aliasService.ActiveAliasChanged -= SendSwitchConfirmation;
             await userChannel.SendMessageAsync($"Switch to {GetAliasString(aliases[selection])} confirmed.");
+            return;
         }
 
         private async void SendSwitchConfirmation(object sender, AliasChangeEventArgs e)
@@ -84,23 +88,28 @@ namespace BuzzBot.Discord.Modules
         [Command("characters")]
         public async Task Characters(IGuildUser user)
         {
-            if (!_epgpRepository.ContainsUser(user.Id))
+            List<EpgpAlias> aliases;
+            await using (var dbContext = new BuzzBotDbContext(_configuration))
             {
-                await ReplyAsync("No record of that user exists.");
-                return;
-            }
-            var aliases = _epgpRepository.GetAliasesForUser(user.Id);
-            if (!aliases.Any())
-            {
-                await ReplyAsync("No aliases found for that user.");
-                return;
-            }
+                var guildUser = dbContext.GuildUsers.Include(gu => gu.Aliases).FirstOrDefault(usr => usr.Id == user.Id);
+                if (guildUser == null)
+                {
+                    await ReplyAsync("No record of that user exists.");
+                    return;
+                }
+                aliases = guildUser.Aliases;
+                if (!aliases.Any())
+                {
+                    await ReplyAsync("No aliases found for that user.");
+                    return;
+                }
 
-            if (!aliases.Any(a => a.IsActive))
-            {
-                var primary = aliases.FirstOrDefault(a => a.IsPrimary);
-                if (primary != null) primary.IsActive = true;
-                _epgpRepository.Save();
+                if (!aliases.Any(a => a.IsActive))
+                {
+                    var primary = aliases.FirstOrDefault(a => a.IsPrimary);
+                    if (primary != null) primary.IsActive = true;
+                    await dbContext.SaveChangesAsync();
+                }
             }
             var pageBuilder = new PageFormatBuilder()
                 .AddColumn("Alias")

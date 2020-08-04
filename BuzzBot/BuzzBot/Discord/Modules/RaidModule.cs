@@ -14,7 +14,7 @@ using Discord.Commands;
 namespace BuzzBot.Discord.Modules
 {
     [Group(GroupName)]
-    public class RaidModule : BuzzBotModuleBase<SocketCommandContext>
+    public class RaidModule : BuzzBotModuleBase
     {
         private const string GroupName = @"raid";
         private readonly IRaidService _raidService;
@@ -40,7 +40,7 @@ namespace BuzzBot.Discord.Modules
         [Alias("?")]
         public async Task Help() => await _documentationService.SendDocumentation(await Context.User.GetOrCreateDMChannelAsync(), GroupName, Context.User.Id);
 
-        [Command("begin")]
+        [Command("begin", RunMode = RunMode.Async)]
         [Summary("Begins a new raid event")]
         [Remarks("begin moltencore")]
         [RequiresBotAdmin]
@@ -49,7 +49,7 @@ namespace BuzzBot.Discord.Modules
             EpgpRaid raid;
             try
             {
-                raid = _raidFactory.CreateNew(templateId);
+                raid = await _raidFactory.CreateNew(templateId);
 
             }
             catch (ArgumentException ex)
@@ -68,6 +68,7 @@ namespace BuzzBot.Discord.Modules
                 await ReplyAsync("No template by that name exists");
                 return;
             }
+            raid.Name = templateId;
             raid.RaidLeader = Context.User.Id;
             await _raidService.PostRaid(Context.Channel, raid);
         }
