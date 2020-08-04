@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using BuzzBotData.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -48,27 +49,29 @@ namespace BuzzBot.Discord.Services
                 _dbContext.Guilds.Remove(existingGuild);
             }
 
-            foreach (var newCharacter in guild.Characters)
+            var characters = guild.Characters.ToList();
+            guild.Characters = null;
+            _dbContext.Guilds.Add(guild);
+            foreach (var newCharacter in characters)
             {
-                foreach (var newBag in newCharacter.Bags)
+                var bag = newCharacter.Bags.ToList();
+                newCharacter.Bags = null;
+                _dbContext.Characters.Add(newCharacter);
+                foreach (var newBag in bag)
                 {
-                    foreach (var newBagSlot in newBag.BagSlots)
+                    var bagSlot = newBag.BagSlots.ToList(); 
+                    newBag.BagSlots = null;
+                    newBag.ItemId = newBag.BagItem?.Id;
+                    newBag.BagItem = null;
+                    _dbContext.Bags.Add(newBag);
+                    foreach (var newBagSlot in bagSlot)
                     {
+                        newBagSlot.ItemId = newBagSlot.Item?.Id;
                         newBagSlot.Item = null;
                         _dbContext.BagSlots.Add(newBagSlot);
                     }
-
-                    newBag.BagSlots = null;
-                    newBag.BagItem = null;
-                    _dbContext.Bags.Add(newBag);
                 }
-
-                newCharacter.Bags = null;
-                _dbContext.Characters.Add(newCharacter);
             }
-
-            guild.Characters = null;
-            _dbContext.Guilds.Add(guild);
             _dbContext.SaveChanges();
         }
 
