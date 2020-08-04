@@ -4,6 +4,7 @@ using BuzzBot.ClassicGuildBank.Extensions;
 using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Services;
 using BuzzBot.Epgp.Extensions;
+using BuzzBot.NexusHub;
 using BuzzBot.Wowhead.Extensions;
 using BuzzBotData.Extensions;
 using Discord;
@@ -72,7 +73,7 @@ namespace BuzzBot
             var client = services.GetService<DiscordSocketClient>();
             services.GetRequiredService<LogService>();
             await services.GetRequiredService<CommandHandlingService>().InitializeAsync(services);
-
+            services.GetRequiredService<NexusHubItemPoller>().Initialize();
 
             await client.LoginAsync(TokenType.Bot, Configuration["token"]);
             await client.StartAsync();

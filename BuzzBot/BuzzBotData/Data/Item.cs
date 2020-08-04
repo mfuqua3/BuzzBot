@@ -37,5 +37,7 @@ namespace BuzzBotData.Data
 
         [JsonIgnore]
         public List<TransactionDetail> TransactionDetails { get; set; }
+        [JsonIgnore]
+        public List<LiveItemData> LiveItemData { get; set; }
     }
 }

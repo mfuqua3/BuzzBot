@@ -4,7 +4,7 @@
     {
         public string FactionId { get; set; }
         public Faction Faction { get; set; }
-        public string ItemId { get; set; }
+        public int ItemId { get; set; }
         public Item Item { get; set; }
         public int MarketValue { get; set; }
         public int HistoricalValue { get; set; }

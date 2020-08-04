@@ -41,6 +41,18 @@ namespace BuzzBot.NexusHub
             return response;
         }
 
+        public async Task<OverviewResponseViewModel> GetItemOverview(string server,
+            CancellationToken token = default(CancellationToken))
+        {
+            var httpResponseMessage =
+                await _client.GetAsync(@"https://api.nexushub.co/wow-classic/v1/items/Kromcrush-Horde/");
+           // var httpResponseMessage = await _client.GetAsync($"{ApiBaseAddress}/wow-classic/v1/items/{server}", token);
+            if (!httpResponseMessage.IsSuccessStatusCode) return null;
+            var content = await httpResponseMessage.Content.ReadAsStringAsync();
+            var response = JsonConvert.DeserializeObject<OverviewResponseViewModel>(content);
+            return response;
+        }
+
         public async Task Initialize()
         {
             var authenticationRequest = new AuthenticateRequestViewModel

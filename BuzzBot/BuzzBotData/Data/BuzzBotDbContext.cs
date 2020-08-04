@@ -16,6 +16,9 @@ namespace BuzzBotData.Data
         public DbSet<EpgpTransaction> EpgpTransactions { get; set; }
         public DbSet<Raid> Raids { get; set; }
         public DbSet<RaidItem> RaidItems { get; set; }
+        public DbSet<Server> Servers { get; set; }
+        public DbSet<Faction> Factions { get; set; }
+        public DbSet<LiveItemData> LiveItemData { get; set; }
 
         public BuzzBotDbContext()
         {
@@ -35,6 +38,28 @@ namespace BuzzBotData.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<Server>()
+                .HasKey(s => s.Id);
+
+            modelBuilder.Entity<Faction>(entity =>
+            {
+                entity.HasOne<Server>()
+                    .WithMany(s => s.Factions)
+                    .HasForeignKey(f => f.ServerId)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<LiveItemData>(entity =>
+            {
+                entity.HasKey(itm => new {itm.FactionId, itm.ItemId});
+                entity.HasOne<Item>()
+                    .WithMany(itm => itm.LiveItemData)
+                    .HasForeignKey(itm => itm.ItemId)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
 
             modelBuilder.Entity<RaidAlias>()
                 .HasKey(ra => new { ra.RaidId, ra.AliasId });
