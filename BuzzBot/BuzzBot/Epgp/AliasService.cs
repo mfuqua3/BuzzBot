@@ -9,10 +9,12 @@ namespace BuzzBot.Epgp
     public class AliasService : IAliasService
     {
         private readonly BuzzBotDbContext _dbContext;
+        private readonly IAliasEventAlerter _eventAlerter;
 
-        public AliasService(BuzzBotDbContext dbContext)
+        public AliasService(BuzzBotDbContext dbContext, IAliasEventAlerter eventAlerter)
         {
             _dbContext = dbContext;
+            _eventAlerter = eventAlerter;
         }
         public EpgpAlias GetActiveAlias(ulong userId)
         {
@@ -47,7 +49,7 @@ namespace BuzzBot.Epgp
             var newActive = aliases.First(a => a.Name.Equals(aliasName));
             newActive.IsActive = true;
             _dbContext.SaveChanges();
-            ActiveAliasChanged?.Invoke(this, new AliasChangeEventArgs(userId, currentActive, newActive));
+            _eventAlerter.RaiseActiveAliasChanged(new AliasChangeEventArgs(userId, currentActive, newActive));
         }
 
         public void SetPrimaryAlias(ulong userId, string aliasName)
@@ -61,7 +63,7 @@ namespace BuzzBot.Epgp
             var newPrimary = aliases.First(a => a.Name.Equals(aliasName));
             newPrimary.IsPrimary = true;
             _dbContext.SaveChanges();
-            PrimaryAliasChanged?.Invoke(this, new AliasChangeEventArgs(userId, currentPrimary, newPrimary));
+            _eventAlerter.RaisePrimaryAliasChanged(new AliasChangeEventArgs(userId, currentPrimary, newPrimary));
         }
 
         public List<EpgpAlias> GetAliases(ulong userId)
@@ -81,12 +83,8 @@ namespace BuzzBot.Epgp
         {
             _dbContext.Aliases.Add(alias);
             _dbContext.SaveChanges();
-            AliasAdded?.Invoke(this, alias);
+            _eventAlerter.RaiseAliasAdded(alias);
         }
-
-        public event EventHandler<AliasChangeEventArgs> PrimaryAliasChanged;
-        public event EventHandler<AliasChangeEventArgs> ActiveAliasChanged;
-        public event EventHandler<EpgpAlias> AliasAdded;
         public EpgpAlias GetAlias(Guid aliasId)
         {
             return _dbContext.Aliases.Find(aliasId);

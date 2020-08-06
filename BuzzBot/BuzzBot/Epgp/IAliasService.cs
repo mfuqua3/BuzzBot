@@ -40,16 +40,6 @@ namespace BuzzBot.Epgp
         EpgpAlias GetAlias(string aliasName);
 
         void AddAlias(EpgpAlias alias);
-        /// <summary>
-        /// Raised when a primary alias is changed
-        /// </summary>
-        event EventHandler<AliasChangeEventArgs> PrimaryAliasChanged;
-        /// <summary>
-        /// Raised when an active alias is changed
-        /// </summary>
-        event EventHandler<AliasChangeEventArgs> ActiveAliasChanged;
-
-        event EventHandler<EpgpAlias> AliasAdded;
         EpgpAlias GetAlias(Guid aliasId);
         void DeleteAlias(string aliasName);
     }

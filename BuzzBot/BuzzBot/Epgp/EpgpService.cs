@@ -10,24 +10,31 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuzzBot.Epgp
 {
-    public class EpgpService : IEpgpService
+    public class EpgpService : IEpgpService, IDisposable
     {
         private readonly IEpgpConfigurationService _configurationService;
         private readonly IEpgpCalculator _epgpCalculator;
         private readonly IRaidRepository _raidRepository;
+        private readonly IAliasEventAlerter _aliasEventAlerter;
         private readonly IAliasService _aliasService;
         private readonly BuzzBotDbContext _dbContext;
         public const string EpFlag = "-ep";
         public const string GpFlag = "-gp";
 
-        public EpgpService(IEpgpConfigurationService configurationService, IEpgpCalculator epgpCalculator, IRaidRepository raidRepository, IAliasService aliasService, BuzzBotDbContext dbContext)
+        public EpgpService(IEpgpConfigurationService configurationService, 
+            IEpgpCalculator epgpCalculator, 
+            IRaidRepository raidRepository, 
+            IAliasEventAlerter aliasEventAlerter,
+            IAliasService aliasService,
+            BuzzBotDbContext dbContext)
         {
             _configurationService = configurationService;
             _epgpCalculator = epgpCalculator;
             _raidRepository = raidRepository;
+            _aliasEventAlerter = aliasEventAlerter;
             _aliasService = aliasService;
             _dbContext = dbContext;
-            aliasService.AliasAdded += AliasAdded;
+            aliasEventAlerter.AliasAdded += AliasAdded;
         }
 
         private void AliasAdded(object? sender, EpgpAlias e)
@@ -170,6 +177,11 @@ namespace BuzzBot.Epgp
                 if (string.IsNullOrWhiteSpace(epgpFlag) || epgpFlag.Equals(GpFlag))
                     Gp(alias, gpDecay, $"{decayPercent}% Decay", TransactionType.GpDecay);
             }
+        }
+
+        public void Dispose()
+        {
+            _aliasEventAlerter.AliasAdded -= AliasAdded;
         }
     }
 }

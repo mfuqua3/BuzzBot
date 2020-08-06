@@ -21,6 +21,7 @@ namespace BuzzBot.Discord.Modules
         private readonly IAliasService _aliasService;
         private readonly IEmoteService _emoteService;
         private readonly IQueryService _queryService;
+        private readonly IAliasEventAlerter _aliasEventAlerter;
         private readonly IConfiguration _configuration;
 
         public AliasModule(
@@ -28,12 +29,14 @@ namespace BuzzBot.Discord.Modules
             IAliasService aliasService,
             IEmoteService emoteService,
             IQueryService queryService,
+            IAliasEventAlerter aliasEventAlerter,
             IConfiguration configuration)
         {
             _pageService = pageService;
             _aliasService = aliasService;
             _emoteService = emoteService;
             _queryService = queryService;
+            _aliasEventAlerter = aliasEventAlerter;
             _configuration = configuration;
         }
 
@@ -61,9 +64,9 @@ namespace BuzzBot.Discord.Modules
                 await userChannel.SendMessageAsync("Switch operation cancelled");
                 return;
             };
-            _aliasService.ActiveAliasChanged += SendSwitchConfirmation;
+            _aliasEventAlerter.ActiveAliasChanged += SendSwitchConfirmation;
             _aliasService.SetActiveAlias(user.Id, aliases[selection].Name);
-            _aliasService.ActiveAliasChanged -= SendSwitchConfirmation;
+            _aliasEventAlerter.ActiveAliasChanged -= SendSwitchConfirmation;
             await userChannel.SendMessageAsync($"Switch to {GetAliasString(aliases[selection])} confirmed.");
             return;
         }
