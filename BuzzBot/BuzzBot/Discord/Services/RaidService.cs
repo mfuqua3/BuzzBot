@@ -17,31 +17,34 @@ namespace BuzzBot.Discord.Services
         private const int MaxConcurrentRaids = 1; //Only handles one raid in current version
         private DiscordSocketClient _client;
         private readonly IRaidMonitorFactory _raidMonitorFactory;
-        private readonly IAliasService _aliasService;
+        private readonly IAliasEventAlerter _aliasEventAlerter;
         private readonly IEmoteService _emoteService;
         private readonly IEpgpCalculator _epgpCalculator;
         private readonly IUserService _userService;
+        private readonly IAliasService _aliasService;
         private readonly IRaidRepository _raidRepository;
         private readonly BuzzBotDbContext _dbContext;
 
         public RaidService(
             DiscordSocketClient client,
             IRaidMonitorFactory raidMonitorFactory,
-            IAliasService aliasService,
+            IAliasEventAlerter aliasEventAlerter,
             IEmoteService emoteService,
             IEpgpCalculator epgpCalculator,
             IUserService userService,
+            IAliasService aliasService,
             IRaidRepository raidRepository,
             BuzzBotDbContext dbContext)
         {
             _client = client;
-            _aliasService = aliasService;
             _emoteService = emoteService;
             _epgpCalculator = epgpCalculator;
             _userService = userService;
+            _aliasService = aliasService;
             _raidRepository = raidRepository;
             _dbContext = dbContext;
             _raidMonitorFactory = raidMonitorFactory;
+            _aliasEventAlerter = aliasEventAlerter;
         }
 
         private async void ActiveAliasChanged(object sender, AliasChangeEventArgs e)
@@ -133,7 +136,7 @@ namespace BuzzBot.Discord.Services
             raidData.LeaderChannel = leaderChannel;
             _client.ReactionAdded += ReactionAdded;
             _client.ReactionRemoved += ReactionRemoved;
-            _aliasService.ActiveAliasChanged += ActiveAliasChanged;
+            _aliasEventAlerter.ActiveAliasChanged += ActiveAliasChanged;
             await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.CasterEmoteName)));
             await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.MeleeEmoteName)));
             await message.AddReactionAsync(Emote.Parse(_emoteService.GetFullyQualifiedName(guildId, EmbedConstants.RangedEmoteName)));
@@ -303,7 +306,7 @@ namespace BuzzBot.Discord.Services
         {
             _client.ReactionAdded -= ReactionAdded;
             _client.ReactionRemoved -= ReactionRemoved;
-            _aliasService.ActiveAliasChanged -= ActiveAliasChanged;
+            _aliasEventAlerter.ActiveAliasChanged -= ActiveAliasChanged;
             _client = null;
         }
     }
