@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -5,6 +6,8 @@ using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.WindowsServices;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using NLog.Web;
 
 namespace BuzzBot
 {
@@ -12,33 +15,53 @@ namespace BuzzBot
     {
         public static void Main(string[] args)
         {
-            var isService = !(Debugger.IsAttached || args.Contains("--console"));
-            var pathToContentRoot = Directory.GetCurrentDirectory();
-            var webHostArgs = args.Where(arg => arg != "--console").ToArray();
-
-            if (isService)
+            var logger = NLogBuilder.ConfigureNLog("NLog.config").GetCurrentClassLogger();
+            try
             {
-                var pathToExe = Process.GetCurrentProcess().MainModule.FileName;
-                pathToContentRoot = Path.GetDirectoryName(pathToExe);
-            }
+                logger.Debug("init main function");
 
-            var host = WebHost.CreateDefaultBuilder(webHostArgs)
-                .ConfigureAppConfiguration(builder =>
+                var isService = !(Debugger.IsAttached || args.Contains("--console"));
+                var pathToContentRoot = Directory.GetCurrentDirectory();
+                var webHostArgs = args.Where(arg => arg != "--console").ToArray();
+
+                if (isService)
                 {
-                    builder.SetBasePath(Directory.GetCurrentDirectory())
-                        .AddJsonFile("botConfig.json");
-                })
-                .UseContentRoot(pathToContentRoot)
-                .UseStartup<Startup>()
-                .Build();
+                    var pathToExe = Process.GetCurrentProcess().MainModule.FileName;
+                    pathToContentRoot = Path.GetDirectoryName(pathToExe);
+                }
 
-            if (isService)
-            {
-                host.RunAsService();
+                var host = WebHost.CreateDefaultBuilder(webHostArgs)
+                    .ConfigureAppConfiguration(builder =>
+                    {
+                        builder.SetBasePath(Directory.GetCurrentDirectory())
+                            .AddJsonFile("botConfig.json");
+                    })
+                    .UseContentRoot(pathToContentRoot)
+                    .UseStartup<Startup>()
+                    .ConfigureLogging(logging =>
+                    {
+                        logging.ClearProviders();
+                        logging.SetMinimumLevel(LogLevel.Information);
+                    })
+                    .UseNLog()
+                    .Build();
+
+                if (isService)
+                {
+                    host.RunAsService();
+                }
+                else
+                {
+                    host.Run();
+                }
             }
-            else
+            catch (Exception ex)
             {
-                host.Run();
+                logger.Error(ex, "Error in init");
+            }
+            finally
+            {
+                NLog.LogManager.Shutdown();
             }
         }
     }
