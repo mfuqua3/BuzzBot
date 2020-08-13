@@ -62,6 +62,7 @@ namespace BuzzBot.Epgp
                 case 17: //2h weapon
                     return 2;
                 case 13: //1H weapon
+                case 21: //"Main Hand" weapon
                     return 1.5;
                 case 3: //Shoulders
                 case 12: //Trinket
