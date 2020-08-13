@@ -15,16 +15,24 @@ namespace BuzzBot.Discord.Services
         private readonly BuzzBotDbContext _dbContext;
         private readonly IItemResolver _itemResolver;
 
-        public ItemService(IQueryService queryService, BuzzBotDbContext dbContext)
-        {/*, IItemResolver itemResolver*/
+        public ItemService(IQueryService queryService, BuzzBotDbContext dbContext, IItemResolver itemResolver)
+        {
             _queryService = queryService;
             _dbContext = dbContext;
-           //_itemResolver = itemResolver;
+            _itemResolver = itemResolver;
         }
-        public async Task<Item> TryGetItem(string queryString, ICommandContext commandContext)
+        public async Task<Item> TryGetItem(string queryString, ICommandContext commandContext, ulong targetUserId)
+        {
+            if (targetUserId == 0)
+                targetUserId = commandContext.User.Id;
+            var item = await GetQueriedItem(queryString, commandContext);
+            return await _itemResolver.ResolveItem(item, commandContext, targetUserId);
+        }
+
+        private async Task<Item> GetQueriedItem(string queryString, ICommandContext commandContext)
         {
             var queryChannel = commandContext.Channel;
-            var items = _dbContext.Items.AsQueryable().Where(itm => EF.Functions.Like(itm.Name, $"%{queryString}%")).OrderByDescending(i=>i.ItemLevel).ToList();
+            var items = _dbContext.Items.AsQueryable().Where(itm => EF.Functions.Like(itm.Name, $"%{queryString}%")).OrderByDescending(i => i.ItemLevel).ToList();
             if (items.Count == 0)
             {
                 await queryChannel.SendMessageAsync($"\"{queryString}\" returned no results.");
@@ -42,7 +50,6 @@ namespace BuzzBot.Discord.Services
             if (result == -1) return null;
             var item = items[result];
             return item;
-            return await _itemResolver.ResolveItem(item, commandContext);
         }
     }
 }

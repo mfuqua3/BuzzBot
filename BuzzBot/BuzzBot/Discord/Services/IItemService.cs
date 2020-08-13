@@ -7,6 +7,6 @@ namespace BuzzBot.Discord.Services
 {
     public interface IItemService
     {
-        public Task<Item> TryGetItem(string queryString, ICommandContext queryChannel);
+        public Task<Item> TryGetItem(string queryString, ICommandContext queryChannel, ulong targetUserId = 0);
     }
 }
