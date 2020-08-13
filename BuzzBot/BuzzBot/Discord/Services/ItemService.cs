@@ -1,8 +1,10 @@
 ﻿using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using BuzzBot.Epgp;
 using BuzzBotData.Data;
 using Discord;
+using Discord.Commands;
 using Microsoft.EntityFrameworkCore;
 
 namespace BuzzBot.Discord.Services
@@ -11,14 +13,17 @@ namespace BuzzBot.Discord.Services
     {
         private readonly IQueryService _queryService;
         private readonly BuzzBotDbContext _dbContext;
+        private readonly IItemResolver _itemResolver;
 
         public ItemService(IQueryService queryService, BuzzBotDbContext dbContext)
-        {
+        {/*, IItemResolver itemResolver*/
             _queryService = queryService;
             _dbContext = dbContext;
+           //_itemResolver = itemResolver;
         }
-        public async Task<Item> TryGetItem(string queryString, IMessageChannel queryChannel)
+        public async Task<Item> TryGetItem(string queryString, ICommandContext commandContext)
         {
+            var queryChannel = commandContext.Channel;
             var items = _dbContext.Items.AsQueryable().Where(itm => EF.Functions.Like(itm.Name, $"%{queryString}%")).OrderByDescending(i=>i.ItemLevel).ToList();
             if (items.Count == 0)
             {
@@ -35,7 +40,9 @@ namespace BuzzBot.Discord.Services
                 (itm) => itm.Name,
                 queryChannel, CancellationToken.None);
             if (result == -1) return null;
-            return items[result];
+            var item = items[result];
+            return item;
+            return await _itemResolver.ResolveItem(item, commandContext);
         }
     }
 }
