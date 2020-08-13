@@ -20,6 +20,15 @@ namespace BuzzBot.Epgp.Extensions
                 .AddSingleton<IAliasEventAlerter, AliasEventAlerter>()
                 .AddScoped<IUserService, UserService>()
                 .AddSingleton<IRaidRepository, RaidRepository>();
+
+            services.AddTransient<AhnQirajTempleItemMapper>();
+            services.AddTransient<IItemResolver, ItemResolver>();
+
+            services.AddTransient<ItemMapperResolver>(provider => () => 
+                new IItemMapper[]
+            {
+                provider.GetService<AhnQirajTempleItemMapper>()
+            });
             return services;
         }
     }
