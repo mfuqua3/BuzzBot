@@ -80,7 +80,7 @@ namespace BuzzBot.Discord.Modules
             var config = _epgpConfigurationService.GetConfiguration();
             if (!config.Templates.Any())
             {
-                await ReplyAsync($"No raid templates are currently configured. Try buzz.{GroupName} help");
+                await ReplyAsync($"No raid templates are currently configured. Try !{GroupName} help");
                 return;
             }
             var pageBuilder = new PageFormatBuilder()

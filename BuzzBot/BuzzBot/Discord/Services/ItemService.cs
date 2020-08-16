@@ -26,6 +26,7 @@ namespace BuzzBot.Discord.Services
             if (targetUserId == 0)
                 targetUserId = commandContext.User.Id;
             var item = await GetQueriedItem(queryString, commandContext);
+            if (item == null) return null;
             return await _itemResolver.ResolveItem(item, commandContext, targetUserId);
         }
 
