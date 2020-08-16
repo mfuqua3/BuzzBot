@@ -43,22 +43,9 @@ namespace BuzzBot.Epgp
             if (guild == null) return false;
             var guildUser = await guild.GetUserAsync(userId);
             if (guildUser == null) return false;
-            var userClass = guildUser.GetClass();
-            if (userClass == WowClass.Unknown) return false;
             try
             {
-                var alias = new EpgpAlias
-                {
-                    UserId = userId,
-                    Class = userClass.ToDomainClass(),
-                    EffortPoints = 0,
-                    GearPoints = 0,
-                    IsPrimary = true,
-                    Name = guildUser.GetAliasName(),
-                    Id = Guid.NewGuid()
-                };
                 _dbContext.GuildUsers.Add(new GuildUser { Id = userId });
-                _aliasService.AddAlias(alias);
                 return true;
             }
             catch (Exception)

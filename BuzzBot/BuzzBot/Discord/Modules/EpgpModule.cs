@@ -91,7 +91,7 @@ namespace BuzzBot.Discord.Modules
                 await ReplyAsync("No active raid could be found.");
                 return;
             }
-            var item = await _itemService.TryGetItem(itemQueryString, Context.Channel);
+            var item = await _itemService.TryGetItem(itemQueryString, Context, user.Id);
             if (item == null) return;
             var gp = _epgpCalculator.ConvertGpFromGold(raid.NexusCrystalValue) * 2;
             var activeAlias = _aliasService.GetActiveAlias(user.Id);
@@ -126,7 +126,7 @@ namespace BuzzBot.Discord.Modules
             var isOffhand = queryString.EndsWith(" -oh");
             if (isOffhand)
                 queryString = queryString.Substring(0, queryString.Length - 4);
-            var item = await _itemService.TryGetItem(queryString, Context.Channel);
+            var item = await _itemService.TryGetItem(queryString, Context, user.Id);
             if (item == null) return;
             await GiveItemGearPoints(user, item, isOffhand);
         }
@@ -138,7 +138,7 @@ namespace BuzzBot.Discord.Modules
             var isOffhand = queryString.EndsWith(" -oh");
             if (isHunter || isOffhand)
                 queryString = queryString.Substring(0, queryString.Length - 4);
-            var item = await _itemService.TryGetItem(queryString, Context.Channel);
+            var item = await _itemService.TryGetItem(queryString, Context);
             if (item == null) return;
             await ReplyAsync("", false, CreateItemEmbed(item, isHunter, isOffhand, out _));
         }
