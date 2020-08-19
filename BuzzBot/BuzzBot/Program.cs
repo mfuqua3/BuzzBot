@@ -29,7 +29,7 @@ namespace BuzzBot
                     var pathToExe = Process.GetCurrentProcess().MainModule.FileName;
                     pathToContentRoot = Path.GetDirectoryName(pathToExe);
                 }
-
+                Directory.SetCurrentDirectory(AppDomain.CurrentDomain.BaseDirectory);
                 var host = WebHost.CreateDefaultBuilder(webHostArgs)
                     .ConfigureAppConfiguration(builder =>
                     {
