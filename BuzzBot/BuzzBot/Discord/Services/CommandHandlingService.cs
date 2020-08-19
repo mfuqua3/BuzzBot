@@ -43,6 +43,7 @@ namespace BuzzBot.Discord.Services
         {
             _provider = provider;
             _commands.AddTypeReader<IMentionable>(new MentionableTypeReader(), true);
+            _commands.AddTypeReader<Guid>(new GuidTypeReader(), true);
             using var scope = _provider.CreateScope();
             await _commands.AddModulesAsync(Assembly.GetExecutingAssembly(), scope.ServiceProvider);
             // Add additional initialization code here...

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using BuzzBot.Discord.Utility;
+using Discord;
 
 namespace BuzzBot.Discord.Utility
 {
@@ -13,15 +14,17 @@ public class PageFormatBuilder
     private readonly List<ColumnData> _columnData = new List<ColumnData>();
     private readonly List<RowData> _rowData = new List<RowData>();
     private int _linesPerPage = 15;
+    private IEmote _revealEmote = new Emoji("🔎");
 
-    /// <summary>
-    /// Adds a new column to the Page Format builder
-    /// </summary>
-    /// <param name="columnName">Column name to serve as the identifier</param>
-    /// <param name="displayName">Name to display, will default to the columnName parameter</param>
-    /// <param name="index">Index to insert the column, will default to end</param>
-    /// <returns></returns>
-    public PageFormatBuilder AddColumn(string columnName, string displayName = null, int index = -1)
+    public PageFormatBuilder ConfigureRevealEmote(IEmote emote)
+    {
+        _revealEmote = emote;
+        return this;
+    }
+    public PageFormatBuilder AddHiddenColumn(string columnName,  int index = -1)
+        => AddColumn(columnName, true, index);
+
+    private PageFormatBuilder AddColumn(string columnName, bool isHidden, int index)
     {
         if (_rowData.Any())
         {
@@ -30,7 +33,8 @@ public class PageFormatBuilder
         var columnData = new ColumnData()
         {
             Id = columnName,
-            Title = displayName ?? columnName
+            Title = columnName,
+            IsHidden = isHidden
         };
         if (index == -1)
             _columnData.Add(columnData);
@@ -40,6 +44,16 @@ public class PageFormatBuilder
         }
         return this;
     }
+
+    /// <summary>
+    /// Adds a new column to the Page Format builder
+    /// </summary>
+    /// <param name="columnName">Column name to serve as the identifier</param>
+    /// <param name="displayName">Name to display, will default to the columnName parameter</param>
+    /// <param name="index">Index to insert the column, will default to end</param>
+    /// <returns></returns>
+    public PageFormatBuilder AddColumn(string columnName, int index = -1)
+        => AddColumn(columnName, false, index);
     /// <summary>
     /// Configures the builder to alternate each row between green and red
     /// </summary>
@@ -73,18 +87,20 @@ public class PageFormatBuilder
         return this;
     }
 
-    /// <summary>
-    /// Returns a page format object using all of the parameters set up by the builder
-    /// </summary>
-    /// <returns></returns>
-    public PageFormat Build()
+    private BasePageFormat Build(bool buildHiddenColumns)
     {
-        var numberOfColumns = _columnData.Count;
+        var columnData = _columnData.Where(cd => buildHiddenColumns | !cd.IsHidden).ToList();
+        var hiddenColumnIndices = _columnData
+            .Where(cd => !buildHiddenColumns & cd.IsHidden)
+            .Select(cd => _columnData.IndexOf(cd))
+            .ToArray();
+        var numberOfColumns = columnData.Count;
         var minimumPageWidth = 80;
         var maximumPageWidth = 160;
         List<int> minimumColumnSizes = new List<int>();
         for (int i = 0; i < numberOfColumns; i++)
         {
+            if (hiddenColumnIndices.Contains(i)) continue;
             var minimumColumnSize = Math.Max(_columnData[0].Title.Length,
                 _rowData.Select(rd => rd.Fields[i]?.Length ?? 0).Max()) + 2;
             minimumColumnSizes.Add(minimumColumnSize);
@@ -121,13 +137,14 @@ public class PageFormatBuilder
         {
             columnSizeActuals = minimumColumnSizes;
         }
-        var returnValue = new PageFormat() { LinesPerPage = _linesPerPage };
+        var returnValue = new BasePageFormat() { LinesPerPage = _linesPerPage };
         var actualWidth = columnSizeActuals.Sum() + numberOfColumns + 1;
         var headerSb = new StringBuilder("  ");
         var horizontalRuleSb = new StringBuilder();
         var widthShouldBe = 2;
         for (var i = 0; i < _columnData.Count; i++)
         {
+            if (hiddenColumnIndices.Contains(i)) continue;
             widthShouldBe += columnSizeActuals[i];
             if (i != _columnData.Count - 1) widthShouldBe += 1;
             var column = _columnData[i];
@@ -149,7 +166,7 @@ public class PageFormatBuilder
         var alternate = false;
         foreach (var row in _rowData)
         {
-            contentLines.Add(CreateLine(row, columnSizeActuals, alternate));
+            contentLines.Add(CreateLine(row, columnSizeActuals, alternate, hiddenColumnIndices));
             if (_alternate) alternate = !alternate;
         }
 
@@ -157,13 +174,36 @@ public class PageFormatBuilder
         return returnValue;
     }
 
-    private string CreateLine(RowData rowData, List<int> columnSizes, bool alternate)
+    /// <summary>
+    /// Returns a page format object using all of the parameters set up by the builder
+    /// </summary>
+    /// <returns></returns>
+    public PageFormat Build()
+    {
+        var formatBase = Build(false);
+        var format = new PageFormat
+        {
+            HeaderLine = formatBase.HeaderLine,
+            ContentLines = formatBase.ContentLines,
+            HorizontalRule = formatBase.HorizontalRule,
+            LinesPerPage = formatBase.LinesPerPage,
+            RevealEmote = _revealEmote
+    };
+        if (!_columnData.Any(cd => cd.IsHidden))
+            return format;
+        format.HasHiddenColumns = true;
+        format.RevealedPageFormat = Build(true);
+        return format;
+    }
+
+    private string CreateLine(RowData rowData, List<int> columnSizes, bool alternate, int[] hiddenColumnIndices)
     {
         var codeIdentifier = alternate ? "- " : "+ ";
         var lineSb = new StringBuilder(codeIdentifier);
         var sizeShouldBe = 2;
         for (var i = 0; i < rowData.Fields.Length; i++)
         {
+            if(hiddenColumnIndices.Contains(i))continue;
             var columnSize = columnSizes[i];
             sizeShouldBe += columnSize + 1;
             var field = rowData.Fields[i];
@@ -179,6 +219,7 @@ public class PageFormatBuilder
     {
         public string Id { get; set; }
         public string Title { get; set; }
+        public bool IsHidden { get; set; }
     }
 
     public class RowData

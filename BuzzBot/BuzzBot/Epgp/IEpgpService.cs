@@ -1,4 +1,5 @@
-﻿using BuzzBotData.Data;
+﻿using System;
+using BuzzBotData.Data;
 
 namespace BuzzBot.Epgp
 {
@@ -12,5 +13,6 @@ namespace BuzzBot.Epgp
         void Gp(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.GpManual);
         void Ep(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.EpManual);
         void Gp(EpgpAlias alias, Item item, string memo, int overrideGpValue = -1);
+        void DeleteTransaction(Guid TransactionId);
     }
 }
