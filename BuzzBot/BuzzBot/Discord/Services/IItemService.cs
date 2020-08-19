@@ -8,6 +8,7 @@ namespace BuzzBot.Discord.Services
     public interface IItemService
     {
         public Task<Item> TryGetItem(string queryString, ICommandContext queryChannel, ulong targetUserId = 0);
-        public Task PrintItemHistory(IMessageChannel channel, EpgpAlias alias, bool asAdmin = false);
+        public Task PrintLootHistory(IMessageChannel channel, EpgpAlias alias, bool asAdmin = false);
+        Task PrintItemHistory(IMessageChannel channel, Item item, bool asAdmin = false);
     }
 }

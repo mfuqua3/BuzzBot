@@ -386,11 +386,21 @@ namespace BuzzBot.Discord.Modules
         [Alias("items")]
         [Summary("Prints the users entire awarded item history")]
         [Remarks("loot @Azar")]
-        public async Task PrintItemHistory(IGuildUser user)
+        public async Task PrintLootHistory(IGuildUser user)
         {
             var alias = _aliasService.GetActiveAlias(user.Id);
             var channel = await GetUserChannel();
-            await _itemService.PrintItemHistory(channel, alias, _administrationService.IsUserAdmin(Context.User));
+            await _itemService.PrintLootHistory(channel, alias, _administrationService.IsUserAdmin(Context.User));
+        }
+        [Command("history")]
+        [Summary("Prints the an entire awarded item history")]
+        [Remarks("loot Claw of Chromaggus")]
+        public async Task PrintItemHistory([Remainder] string queryString)
+        {
+            var item = await _itemService.TryGetItem(queryString, Context);
+            if (item == null) return;
+            await _itemService.PrintItemHistory(await GetUserChannel(), item,
+                _administrationService.IsUserAdmin(Context.User));
         }
 
         [Command("undo")]
