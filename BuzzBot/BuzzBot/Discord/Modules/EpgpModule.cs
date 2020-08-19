@@ -18,6 +18,7 @@ using CsvHelper;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.VisualBasic.FileIO;
@@ -40,6 +41,7 @@ namespace BuzzBot.Discord.Modules
         private IAliasService _aliasService;
         private readonly IItemService _itemService;
         private readonly IRaidService _raidService;
+        private readonly IAdministrationService _administrationService;
         private readonly BuzzBotDbContext _dbContext;
         private IUserService _userService;
         public const string GroupName = "epgp";
@@ -57,6 +59,7 @@ namespace BuzzBot.Discord.Modules
             IAliasService aliasService,
             IItemService itemService,
             IRaidService raidService,
+            IAdministrationService administrationService,
             BuzzBotDbContext dbContext, IUserService userService)
         {
             _priorityReportingService = priorityReportingService;
@@ -71,10 +74,26 @@ namespace BuzzBot.Discord.Modules
             _aliasService = aliasService;
             _itemService = itemService;
             _raidService = raidService;
+            _administrationService = administrationService;
             _dbContext = dbContext;
             _userService = userService;
         }
-
+        [Command("reconcile")]
+        [Alias("validate")]
+        [Summary("Reconciles the users printed EP and GP values against their transaction history.")]
+        public async Task ReconcileAccount(IGuildUser user)
+        {
+            var alias = _aliasService.GetActiveAlias(user.Id);
+            try
+            {
+                _auditService.ValidateTransactionHistory(alias.Id);
+                await ReplyAsync("User's account reconciled successfully. No discrepancies detected.");
+            }
+            catch (System.ComponentModel.DataAnnotations.ValidationException ex)
+            {
+                await ReplyAsync(ex.Message);
+            }
+        }
         [Priority(0)]
         [Command("rolls", RunMode = RunMode.Async)]
         [Summary("Awards an item that has been rolled off in the game")]
@@ -215,7 +234,7 @@ namespace BuzzBot.Discord.Modules
         [Command("audit")]
         public async Task Audit(string aliasName)
         {
-            await _auditService.Audit(aliasName, await GetUserChannel());
+            await _auditService.Audit(aliasName, await GetUserChannel(), _administrationService.IsUserAdmin(Context.User));
         }
 
         [Command("csv")]
@@ -361,6 +380,52 @@ namespace BuzzBot.Discord.Modules
         {
             _epgpConfigurationService.UpdateConfig(key, value);
             await ReplyAsync("Configuration change accepted");
+        }
+
+        [Command("loot")]
+        [Alias("items")]
+        [Summary("Prints the users entire awarded item history")]
+        [Remarks("loot @Azar")]
+        public async Task PrintItemHistory(IGuildUser user)
+        {
+            var alias = _aliasService.GetActiveAlias(user.Id);
+            var channel = await GetUserChannel();
+            await _itemService.PrintItemHistory(channel, alias, _administrationService.IsUserAdmin(Context.User));
+        }
+
+        [Command("undo")]
+        [Summary("Removes an EPGP transaction from the database.")]
+        [Remarks("undo 0f23c9b0e9fd43429d429706116fad9e")]
+        [RequiresBotAdmin]
+        public async Task RemoveTransaction(Guid guid)
+        {
+            _epgpService.DeleteTransaction(guid);
+            await ReplyAsync("Record removed successfully.");
+        }
+
+        [Command("undo", RunMode = RunMode.Async)]
+        [Summary("Removes the last manual EP or GP transaction in the record")]
+        [RequiresBotAdmin]
+        public async Task Undo()
+        {
+            var transaction = _dbContext.EpgpTransactions.Include(t=>t.Alias).AsQueryable().OrderByDescending(t => t.TransactionDateTime)
+                .FirstOrDefault(t =>
+                    t.TransactionType == TransactionType.EpManual | 
+                    t.TransactionType == TransactionType.GpManual |
+                    t.TransactionType == TransactionType.GpFromGear);
+            if (transaction == null)
+            {
+                await ReplyAsync("No transaction could be found to undo.");
+                return;
+            }
+
+            await _queryService.SendQuery($"Undo {transaction.Value}{transaction.TransactionType.GetAttributeOfType<CurrencyAttribute>().Currency.ToString().ToUpper()} " +
+                                          $"given to {transaction.Alias.Name} ({transaction.Memo})?", 
+                Context.Channel, async () =>
+            {
+                _epgpService.DeleteTransaction(transaction.Id);
+                await Task.CompletedTask;
+            }, async () => { await ReplyAsync("Operation cancelled."); });
         }
 
         [Command("add")]
