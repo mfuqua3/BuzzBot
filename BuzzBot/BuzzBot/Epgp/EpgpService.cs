@@ -21,9 +21,9 @@ namespace BuzzBot.Epgp
         public const string EpFlag = "-ep";
         public const string GpFlag = "-gp";
 
-        public EpgpService(IEpgpConfigurationService configurationService, 
-            IEpgpCalculator epgpCalculator, 
-            IRaidRepository raidRepository, 
+        public EpgpService(IEpgpConfigurationService configurationService,
+            IEpgpCalculator epgpCalculator,
+            IRaidRepository raidRepository,
             IAliasEventAlerter aliasEventAlerter,
             IAliasService aliasService,
             BuzzBotDbContext dbContext)
@@ -110,6 +110,37 @@ namespace BuzzBot.Epgp
                 TransactionId = transaction.Id
             };
             _dbContext.RaidItems.Add(raidItem);
+            _dbContext.SaveChanges();
+        }
+
+        public void DeleteTransaction(Guid transactionId)
+        {
+            var transaction = _dbContext.EpgpTransactions.Include(t => t.Alias).ThenInclude(a=>a.AwardedItems).FirstOrDefault(t => t.Id == transactionId);
+            if (transaction == null) return;
+            var raidItems = transaction.Alias.AwardedItems.Where(i => i.TransactionId == transactionId);
+            switch (transaction.TransactionType)
+            {
+                case TransactionType.EpAutomated:
+                case TransactionType.EpManual:
+                case TransactionType.EpDecay:
+                    transaction.Alias.EffortPoints -= transaction.Value;
+                    break;
+                case TransactionType.GpFromGear:
+                case TransactionType.GpManual:
+                case TransactionType.GpDecay:
+                    transaction.Alias.GearPoints -= transaction.Value;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+
+            foreach (var raidItem in raidItems)
+            {
+                _dbContext.RaidItems.Remove(raidItem);
+            }
+
+            _dbContext.EpgpTransactions.Remove(transaction);
+
             _dbContext.SaveChanges();
         }
 
