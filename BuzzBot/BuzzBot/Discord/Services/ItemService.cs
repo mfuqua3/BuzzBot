@@ -35,7 +35,7 @@ namespace BuzzBot.Discord.Services
             return await _itemResolver.ResolveItem(item, commandContext, targetUserId);
         }
 
-        public async Task PrintItemHistory(IMessageChannel channel, EpgpAlias alias, bool asAdmin)
+        public async Task PrintLootHistory(IMessageChannel channel, EpgpAlias alias, bool asAdmin)
         {
             alias = _dbContext.Aliases
                 .Include(a => a.AwardedItems)
@@ -75,6 +75,47 @@ namespace BuzzBot.Discord.Services
                     raidItem.Transaction.Value.ToString()
                 };
                 if(asAdmin)row.Add(raidItem.TransactionId.ToString("N"));
+                pageBuilder.AddRow(row.ToArray());
+            }
+
+            await _pageService.SendPages(channel, pageBuilder.Build());
+        }
+
+        public async Task PrintItemHistory(IMessageChannel channel, Item item, bool asAdmin = false)
+        {
+            item = _dbContext.Items
+                .Include(itm => itm.RaidItems).ThenInclude(ri => ri.AwardedAlias)
+                .Include(itm => itm.RaidItems).ThenInclude(ri => ri.Transaction)
+                .Include(itm => itm.RaidItems).ThenInclude(ri => ri.Raid)
+                .FirstOrDefault(itm => itm.Id == item.Id);
+            if (item == null)
+            {
+                await channel.SendMessageAsync("No item could be found.");
+                return;
+            }
+
+            if (!item.RaidItems.Any())
+            {
+                await channel.SendMessageAsync("No record of that item being awarded could be found");
+                return;
+            }
+            var pageBuilder = new PageFormatBuilder();
+            pageBuilder.AlternateRowColors()
+                .AddColumn("Awarded User")
+                .AddColumn("Raid")
+                .AddColumn("Time (UTC)");
+            if (asAdmin)
+                pageBuilder.AddHiddenColumn("Transaction ID");
+            foreach (var raidItem in item.RaidItems)
+            {
+                var row = new List<string>();
+                row.AddRange(new []
+                {
+                    raidItem.AwardedAlias.Name,
+                    raidItem.Raid.Name,
+                    raidItem.Transaction.TransactionDateTime.ToString("g")
+                });
+                if(asAdmin)row.Add(raidItem.Transaction.Id.ToString("N"));
                 pageBuilder.AddRow(row.ToArray());
             }
 
