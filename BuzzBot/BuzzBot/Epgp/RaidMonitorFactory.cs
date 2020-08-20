@@ -1,27 +1,24 @@
 ﻿using System;
 using BuzzBot.Discord.Services;
 using BuzzBotData.Data;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BuzzBot.Epgp
 {
     public class RaidMonitorFactory : IRaidMonitorFactory
     {
-        private readonly IEpgpService _epgpService;
         private readonly IEmoteService _emoteService;
-        private readonly IAliasService _aliasService;
-        private readonly BuzzBotDbContext _dbContext;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
 
-        public RaidMonitorFactory(IEpgpService epgpService, IEmoteService emoteService, BuzzBotDbContext dbContext, IAliasService aliasService)
+        public RaidMonitorFactory(IEmoteService emoteService, IServiceScopeFactory serviceScopeFactory)
         {
-            _epgpService = epgpService;
             _emoteService = emoteService;
-            _dbContext = dbContext;
-            _aliasService = aliasService;
+            _serviceScopeFactory = serviceScopeFactory;
         }
 
         public EpgpRaidMonitor GetNew(RaidData raidData)
         {
-            return new EpgpRaidMonitor(_epgpService, _emoteService, raidData, _dbContext, _aliasService);
+            return new EpgpRaidMonitor(_emoteService, raidData, _serviceScopeFactory);
         }
     }
 }
