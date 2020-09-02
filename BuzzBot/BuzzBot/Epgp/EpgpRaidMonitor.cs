@@ -12,26 +12,23 @@ using BuzzBotData.Data;
 using Discord;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BuzzBot.Epgp
 {
     public class EpgpRaidMonitor : IDisposable
     {
-        private readonly IEpgpService _epgpService;
         private CancellationTokenSource _cts;
         private readonly IEmoteService _emoteService;
         private RaidData _raidData;
-        private readonly BuzzBotDbContext _dbContext;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
         private bool _restart;
-        private IAliasService _aliasService;
 
-        public EpgpRaidMonitor(IEpgpService epgpService,  IEmoteService emoteService, RaidData raidData, BuzzBotDbContext dbContext, IAliasService aliasService)
+        public EpgpRaidMonitor(IEmoteService emoteService, RaidData raidData, IServiceScopeFactory serviceScopeFactory)
         {
-            _epgpService = epgpService;
             _emoteService = emoteService;
             _raidData = raidData;
-            _dbContext = dbContext;
-            _aliasService = aliasService;
+            _serviceScopeFactory = serviceScopeFactory;
             _cts = new CancellationTokenSource();
             _raidData.RaidObject.PropertyChanged += RaidPropertyChanged;
         }
@@ -125,10 +122,13 @@ namespace BuzzBot.Epgp
 
         private Embed AwardEp(int value, string memo, List<RaidParticipant> participants)
         {
-            var aliases = GetAliases(participants).Select(a => a.Name).Distinct().ToList();
+            using var scope = _serviceScopeFactory.CreateScope();
+            var epgp = scope.ServiceProvider.GetRequiredService<IEpgpService>();
+            var aliasService = scope.ServiceProvider.GetRequiredService<IAliasService>();
+            var aliases = participants.Select(p => aliasService.GetAlias(p.Alias)).ToList();
             foreach (var alias in aliases)
             {
-                _epgpService.Ep(alias, value, memo, TransactionType.EpAutomated);
+                epgp.Ep(alias, value, memo, TransactionType.EpAutomated);
             }
             var embedBuilder = new EmbedBuilder();
             embedBuilder.WithTitle($"EP award of {value} - {memo}")
@@ -172,32 +172,37 @@ namespace BuzzBot.Epgp
 
         private Embed BuildRaidSummary()
         {
-            var raid = _dbContext.Raids
-                .Include(r=>r.Loot).ThenInclude(ri=>ri.Item)
+            using var scope = _serviceScopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<BuzzBotDbContext>();
+            var aliasService = scope.ServiceProvider.GetRequiredService<IAliasService>();
+            var raid = db.Raids
+                .Include(r => r.Loot).ThenInclude(ri => ri.Item)
                 .Include(r => r.Loot).ThenInclude(ri => ri.Transaction)
-                .FirstOrDefault(r=>r.Id == _raidData.RaidObject.RaidId);
-            //var raid = _epgpRepository.GetRaid(_raidData.RaidObject.RaidId);
+                .FirstOrDefault(r => r.Id == _raidData.RaidObject.RaidId);
+            if (raid == null) return new EmbedBuilder().Build();
+            var startTime = raid.StartTime;
+            startTime = DateTime.SpecifyKind(startTime, DateTimeKind.Utc);
             var embedBuilder = new EmbedBuilder()
                 .WithTitle("Raid Summary")
-                .AddField("🌅 Start Time", raid.StartTime.ToEasternTime(), true)
+                .AddField("🌅 Start Time", startTime.ToEasternTime(), true)
                 .AddField("🌙 End Time", DateTime.UtcNow.ToEasternTime(), true)
                 .AddField("💰 Loot distributed", raid.Loot.Count, true);
 
             var lootRecipients = raid.Loot.GroupBy(l => l.AwardedAliasId);
             foreach (var recipient in lootRecipients)
             {
-                var alias = _aliasService.GetAlias(recipient.Key);
+                var alias = aliasService.GetAlias(recipient.Key);
                 var itemSb = new StringBuilder();
                 foreach (var raidItem in recipient)
                 {
                     itemSb.AppendLine($"{raidItem.Item.Name}");
                 }
 
-                embedBuilder.AddField(_emoteService.GetAliasString(alias, _raidData.ServerId), itemSb.ToString(), true);
+                embedBuilder.AddField(_emoteService.GetAliasString(alias, _raidData.ServerId), itemSb.ToString(),
+                    true);
             }
 
             return embedBuilder.Build();
-
         }
 
         private Embed AlertEmbed(string alertMessage)
@@ -219,8 +224,6 @@ namespace BuzzBot.Epgp
             return returnList;
         }
 
-        private IEnumerable<EpgpAlias> GetAliases(IEnumerable<RaidParticipant> participants) =>
-            participants.Select(p => _aliasService.GetAlias(p.Alias));
 
         public void Dispose()
         {

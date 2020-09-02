@@ -53,6 +53,7 @@ namespace BuzzBot.Epgp
                     case 17:
                         return 1;
                     case 13:
+                    case 21:
                         return 0.5;
                     case 15:
                         return 1.5;

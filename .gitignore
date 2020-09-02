@@ -11,6 +11,7 @@
 *.sln.docstates
 
 # User secrets
+epgpconfig.json
 botConfig.json
 
 # User-specific files (MonoDevelop/Xamarin Studio)
