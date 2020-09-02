@@ -1,11 +1,13 @@
 using System;
 using System.Threading.Tasks;
+using AutoMapper;
 using BuzzBot.ClassicGuildBank.Extensions;
 using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Services;
 using BuzzBot.Epgp;
 using BuzzBot.Epgp.Extensions;
 using BuzzBot.NexusHub;
+using BuzzBot.Utility;
 using BuzzBot.Wowhead.Extensions;
 using BuzzBotData.Extensions;
 using Discord;
@@ -30,7 +32,9 @@ namespace BuzzBot
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            var mapperCfg = new MapperConfiguration(cfg => cfg.AddProfile<BuzzBotMapperProfile>());
             services
+                .AddSingleton(mapperCfg.CreateMapper())
                 .AddData()
                 .AddClassicGuildBankComponents()
                 .AddEpgpComponents()

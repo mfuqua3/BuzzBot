@@ -9,6 +9,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using AutoMapper;
 using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Services;
 using BuzzBot.Discord.Utility;
@@ -44,6 +45,7 @@ namespace BuzzBot.Discord.Modules
         private readonly IAdministrationService _administrationService;
         private readonly BuzzBotDbContext _dbContext;
         private IUserService _userService;
+        private IMapper _mapper;
         public const string GroupName = "epgp";
 
         public EpgpModule(
@@ -60,7 +62,7 @@ namespace BuzzBot.Discord.Modules
             IItemService itemService,
             IRaidService raidService,
             IAdministrationService administrationService,
-            BuzzBotDbContext dbContext, IUserService userService)
+            BuzzBotDbContext dbContext, IUserService userService, IMapper mapper)
         {
             _priorityReportingService = priorityReportingService;
             _queryService = queryService;
@@ -77,7 +79,11 @@ namespace BuzzBot.Discord.Modules
             _administrationService = administrationService;
             _dbContext = dbContext;
             _userService = userService;
+            _mapper = mapper;
         }
+
+        
+
         [Command("reconcile")]
         [Alias("validate")]
         [Summary("Reconciles the users printed EP and GP values against their transaction history.")]
@@ -256,6 +262,28 @@ namespace BuzzBot.Discord.Modules
             await channel.SendFileAsync(new MemoryStream(data), "epgp.csv");
         }
 
+        [Command("lootcsv")]
+        [Summary("DMs the calling user a csv file with all of the loot in the bots database")]
+        public async Task PrintLootCsv()
+        {
+            var loot = await _dbContext.RaidItems
+                .Include(ri => ri.Transaction)
+                .Include(ri => ri.Item)
+                .Include(ri => ri.AwardedAlias)
+                .OrderByDescending(ri => ri.Transaction.TransactionDateTime)
+                .ToListAsync();
+            var csvRecords = _mapper.Map<List<RaidItem>, List<LootCsvRecord>>(loot);
+            var channel = await GetUserChannel();
+            await using var stream = new MemoryStream() { Capacity = 10240 };
+            await using var textWriter = new StreamWriter(stream) { AutoFlush = true };
+            await using var writer = new CsvWriter(textWriter, CultureInfo.CurrentCulture);
+            {
+                await writer.WriteRecordsAsync(csvRecords);
+            }
+            var data = stream.ToArray();
+            await channel.SendFileAsync(new MemoryStream(data), "loot.csv");
+        }
+
         [Command("help")]
         [Alias("?")]
         public async Task Help() => await _documentationService.SendDocumentation(await GetUserChannel(), GroupName, Context.User.Id);
@@ -332,7 +360,7 @@ namespace BuzzBot.Discord.Modules
 
         [Command("gp")]
         [RequiresBotAdmin]
-        public async Task AssignGearPoints(IGuildUser user, int value) 
+        public async Task AssignGearPoints(IGuildUser user, int value)
         {
             var alias = _aliasService.GetActiveAlias(user.Id);
             _epgpService.Gp(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
@@ -418,9 +446,9 @@ namespace BuzzBot.Discord.Modules
         [RequiresBotAdmin]
         public async Task Undo()
         {
-            var transaction = _dbContext.EpgpTransactions.Include(t=>t.Alias).AsQueryable().OrderByDescending(t => t.TransactionDateTime)
+            var transaction = _dbContext.EpgpTransactions.Include(t => t.Alias).AsQueryable().OrderByDescending(t => t.TransactionDateTime)
                 .FirstOrDefault(t =>
-                    t.TransactionType == TransactionType.EpManual | 
+                    t.TransactionType == TransactionType.EpManual |
                     t.TransactionType == TransactionType.GpManual |
                     t.TransactionType == TransactionType.GpFromGear);
             if (transaction == null)
@@ -430,7 +458,7 @@ namespace BuzzBot.Discord.Modules
             }
 
             await _queryService.SendQuery($"Undo {transaction.Value}{transaction.TransactionType.GetAttributeOfType<CurrencyAttribute>().Currency.ToString().ToUpper()} " +
-                                          $"given to {transaction.Alias.Name} ({transaction.Memo})?", 
+                                          $"given to {transaction.Alias.Name} ({transaction.Memo})?",
                 Context.Channel, async () =>
             {
                 _epgpService.DeleteTransaction(transaction.Id);
