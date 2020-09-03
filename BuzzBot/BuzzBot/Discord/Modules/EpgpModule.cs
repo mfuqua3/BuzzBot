@@ -340,8 +340,8 @@ namespace BuzzBot.Discord.Modules
         [Command("pr")]
         public async Task PrintPriority(params IGuildUser[] users)
         {
-            var prunedUsers = users.Select(usr => usr.GetAliasName()).Distinct();
-            await PrintPriority(prunedUsers.ToArray());
+            var userNames = users.SelectMany(usr => _aliasService.GetActiveAliases(usr.Id)).Select(a => a.Name).ToArray();
+            await PrintPriority(userNames);
         }
         [Command("ep")]
         [Summary("Grants EP to the user")]
