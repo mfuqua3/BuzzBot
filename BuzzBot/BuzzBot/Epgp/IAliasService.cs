@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using BuzzBotData.Data;
+using Microsoft.EntityFrameworkCore.Internal;
 
 namespace BuzzBot.Epgp
 {
@@ -11,7 +13,7 @@ namespace BuzzBot.Epgp
         /// </summary>
         /// <param name="userId"></param>
         /// <returns></returns>
-        EpgpAlias GetActiveAlias(ulong userId);
+        IEnumerable<EpgpAlias> GetActiveAliases(ulong userId);
         /// <summary>
         /// Gets the alias for the specified user that has been designated the "main" or "primary"
         /// </summary>
@@ -37,26 +39,28 @@ namespace BuzzBot.Epgp
         /// <returns></returns>
         List<EpgpAlias> GetAliases(ulong userId);
 
+        void AddAlias(EpgpAlias alias);
+        void DeleteAlias(string aliasName);
+        EpgpAlias GetAlias(Guid aliasId);
         EpgpAlias GetAlias(string aliasName);
 
-        void AddAlias(EpgpAlias alias);
-        EpgpAlias GetAlias(Guid aliasId);
-        void DeleteAlias(string aliasName);
+        void SetActiveAlias(ulong userId, string aliasName,
+            Action<IAliasConfiguration> configurationOptions);
     }
 
     public class AliasChangeEventArgs : EventArgs
     {
-        public AliasChangeEventArgs(ulong user, EpgpAlias oldValue, EpgpAlias newValue)
+        public AliasChangeEventArgs(ulong user, ICollection<EpgpAlias> oldValues, ICollection<EpgpAlias> newValues)
         {
             User = user;
-            OldValue = oldValue;
-            NewValue = newValue;
-            if (newValue.UserId != user || oldValue.UserId != user)
+            OldValues = oldValues;
+            NewValues = newValues;
+            if (newValues.Any(nv => nv.UserId != user) || oldValues.Any(ov => ov.UserId != user))
                 throw new ArgumentException("Alias user ID must match provided user");
         }
 
         public ulong User { get; }
-        public EpgpAlias OldValue { get; }
-        public EpgpAlias NewValue { get; }
+        public ICollection<EpgpAlias> OldValues { get; }
+        public ICollection<EpgpAlias> NewValues { get; }
     }
 }

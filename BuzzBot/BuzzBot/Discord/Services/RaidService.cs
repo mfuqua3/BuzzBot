@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using AutoMapper;
 using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Utility;
 using BuzzBot.Epgp;
+using BuzzBot.Models;
 using BuzzBotData.Data;
 using Discord;
 using Discord.WebSocket;
@@ -23,6 +25,7 @@ namespace BuzzBot.Discord.Services
         private readonly IUserService _userService;
         private readonly IAliasService _aliasService;
         private readonly IRaidRepository _raidRepository;
+        private readonly IMapper _mapper;
         private readonly BuzzBotDbContext _dbContext;
 
         public RaidService(
@@ -34,6 +37,7 @@ namespace BuzzBot.Discord.Services
             IUserService userService,
             IAliasService aliasService,
             IRaidRepository raidRepository,
+            IMapper mapper,
             BuzzBotDbContext dbContext)
         {
             _client = client;
@@ -42,6 +46,7 @@ namespace BuzzBot.Discord.Services
             _userService = userService;
             _aliasService = aliasService;
             _raidRepository = raidRepository;
+            _mapper = mapper;
             _dbContext = dbContext;
             _raidMonitorFactory = raidMonitorFactory;
             _aliasEventAlerter = aliasEventAlerter;
@@ -52,11 +57,9 @@ namespace BuzzBot.Discord.Services
             foreach (var raid in _raidRepository.GetRaids())
             {
                 if (!raid.RaidObject.Participants.ContainsKey(e.User)) continue;
+                var aliasViewModels = _mapper.Map<ICollection<EpgpAlias>, List<EpgpAliasViewModel>>(e.NewValues);
                 var participant = raid.RaidObject.Participants[e.User];
-                participant.Alias = e.NewValue.Name;
-                participant.WowClass = e.NewValue.Class.ToWowClass();
-                participant.IsPrimaryAlias = e.NewValue.IsPrimary;
-
+                participant.Aliases = aliasViewModels;
                 var embed = CreateEmbed(raid.RaidObject, raid.ServerId);
                 await raid.Message.ModifyAsync(opt => opt.Embed = embed);
             }
@@ -78,12 +81,12 @@ namespace BuzzBot.Discord.Services
             var raid = _raidRepository.GetRaid(reaction.MessageId);
 
             if (!(reaction.User.Value is IGuildUser)) return;
-            var alias = _aliasService.GetActiveAlias(reaction.UserId);
-            if (alias == null) return;
-            var participant = new RaidParticipant(reaction.UserId, alias.Class.ToWowClass())
+            var aliases = _aliasService.GetActiveAliases(reaction.UserId).ToList();
+            if (!aliases.Any()) return;
+            var aliasViewModels = _mapper.Map<List<EpgpAlias>, List<EpgpAliasViewModel>>(aliases);
+            var participant = new RaidParticipant(reaction.UserId)
             {
-                Alias = alias.Name,
-                IsPrimaryAlias = alias.IsPrimary,
+                Aliases = aliasViewModels,
                 Role = reaction.Emote.Name.ParseRoleFromEmote()
             };
             if (action == ReactionAction.Add)
@@ -172,7 +175,7 @@ namespace BuzzBot.Discord.Services
         }
 
         public async Task KickUser(string alias, ulong raidId = 0)
-            => await KickUser(_aliasService.GetAlias(alias).UserId, raidId);
+            => await KickUser(_dbContext.Aliases.FirstOrDefault(a=>a.Name==alias)?.UserId ?? 0, raidId);
 
         public void Start(ulong raidId = 0)
         {
@@ -228,10 +231,10 @@ namespace BuzzBot.Discord.Services
         private async Task RemoveRaid(RaidData raidData)
         {
             _raidRepository.RemoveRaid(raidData.Id);
-            if (raidData.RaidObject.Participants.Values.All(p => p.IsPrimaryAlias)) return;
+            if (raidData.RaidObject.Participants.Values.All(p => p.Aliases.All(a => a.IsPrimary))) return;
             foreach (var participant in raidData.RaidObject.Participants.Values)
             {
-                if (participant.IsPrimaryAlias) continue;
+                if (participant.Aliases.All(a=>a.IsPrimary)) continue;
                 _aliasService.SetActiveAlias(participant.Id, _aliasService.GetPrimaryAlias(participant.Id).Name);
             }
 
@@ -276,7 +279,7 @@ namespace BuzzBot.Discord.Services
 
         private int GetParticipantCount(ICollection<RaidParticipant> participants, Role role)
         {
-            return participants.Count(p => p.Role == role);
+            return participants.Where(p => p.Role == role).SelectMany(p=>p.Aliases).Count();
         }
 
         private string BuildUserList(EpgpRaid raid, Role userRole, ulong guildId)
@@ -288,18 +291,19 @@ namespace BuzzBot.Discord.Services
             }
             var returnSb = new StringBuilder();
             foreach (var participant in participants.Where(p => p.Role == userRole))
+            foreach(var epgpAlias in participant.Aliases)
             {
                 var fullyQualifiedEmoteName =
-                    _emoteService.GetFullyQualifiedName(guildId, participant.WowClass.GetEmoteName());
-                returnSb.AppendLine($"{fullyQualifiedEmoteName} {ParticipantString(participant)}");
+                    _emoteService.GetFullyQualifiedName(guildId, epgpAlias.Class.GetEmoteName());
+                returnSb.AppendLine($"{fullyQualifiedEmoteName} {AliasString(epgpAlias)}");
             }
 
             return returnSb.ToString();
         }
 
-        private string ParticipantString(RaidParticipant participant)
+        private string AliasString(EpgpAliasViewModel aliasViewModel)
         {
-            return participant.IsPrimaryAlias ? $"<@{participant.Id}>" : participant.Alias;
+            return aliasViewModel.IsPrimary ? $"<@{aliasViewModel.UserId}>" : aliasViewModel.Name;
         }
 
         public void Dispose()

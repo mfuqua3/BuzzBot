@@ -1,17 +1,17 @@
-﻿namespace BuzzBot.Epgp
+﻿using System.Collections.Generic;
+using BuzzBot.Models;
+
+namespace BuzzBot.Epgp
 {
     public class RaidParticipant
     {
-        public RaidParticipant(ulong id, WowClass wowClass)
+        public RaidParticipant(ulong id)
         {
             Id = id;
-            WowClass = wowClass;
         }
 
         public ulong Id { get; }
-        public WowClass WowClass { get; set; }
-        public bool IsPrimaryAlias { get; set; } = true;
-        public string Alias { get; set; }
+        public List<EpgpAliasViewModel> Aliases { get; set; }
         public Role Role { get; set; }
     }
 
