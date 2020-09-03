@@ -70,7 +70,7 @@ namespace BuzzBot.Epgp
             get => Get<int>();
             set => Set(value);
         }
-        public int Joined => Participants.Count(p => p.Value.Role != Role.Bench);
+        public int Joined => Participants.Where(p => p.Value.Role != Role.Bench).SelectMany(p=>p.Value.Aliases).Count();
         public ObservableConcurrentDictionary<ulong, RaidParticipant> Participants { get; set; } = new ObservableConcurrentDictionary<ulong, RaidParticipant>();
     }
 }

@@ -44,7 +44,7 @@ namespace BuzzBot.Discord.Modules
         [RequiresBotAdmin]
         public async Task Switch(IGuildUser user)
         {
-            if (user == null);
+            if (user == null) ;
             var aliases = _aliasService.GetAliases(user.Id);
             if (aliases.Count <= 1)
             {
@@ -74,8 +74,51 @@ namespace BuzzBot.Discord.Modules
         private async void SendSwitchConfirmation(object sender, AliasChangeEventArgs e)
         {
             await ReplyAsync(
-                $"<@{e.User}> has swapped from {GetAliasString(e.OldValue)} to {GetAliasString(e.NewValue)}");
+                $"<@{e.User}> has swapped from {GetAliasString(e.OldValues.FirstOrDefault(a => a.IsPrimary) ?? e.OldValues.FirstOrDefault())} to {GetAliasString(e.NewValues.FirstOrDefault())}");
         }
+
+
+
+        [Command("multibox", RunMode = RunMode.Async)]
+        [Summary("Adds an additional active user alias as a \"multibox\" alias.")]
+        public async Task Multibox() => await Multibox(Context.User as IGuildUser);
+
+        [Command("multibox", RunMode = RunMode.Async)]
+        [Summary("Adds an additional active user alias as a \"multibox\" alias.")]
+        [RequiresBotAdmin]
+        public async Task Multibox(IGuildUser user)
+        {
+            var primaryAlias = _aliasService.GetPrimaryAlias(user.Id);
+            if (!primaryAlias.IsActive)
+            {
+                await ReplyAsync($"Setting primary alias of {GetAliasString(primaryAlias)} to active.");
+                _aliasService.SetActiveAlias(user.Id, primaryAlias.Name);
+            }
+
+            var aliases = _aliasService.GetAliases(user.Id).OrderBy(a=>a.Name).ThenByDescending(a=>a.IsPrimary).ToList();
+            var idx = await _queryService.SendOptionSelectQuery(
+                "Please select the alias to multibox.\n**[X]** indicates the alias is already active ",
+                aliases,
+                alias => $"{alias.Name}{(alias.IsActive ? $" **[X]**" : string.Empty)}",
+                await GetUserChannel(),
+                CancellationToken.None);
+            if (idx == -1)
+            {
+                await (await GetUserChannel()).SendMessageAsync("Operation cancelled successfully");
+                return;
+            }
+
+            var toMultibox = aliases[idx];
+            if (toMultibox.IsActive)
+            {
+
+                await (await GetUserChannel()).SendMessageAsync("That alias is already active. Operation cancelled");
+                return;
+            }
+            _aliasService.SetActiveAlias(user.Id, toMultibox.Name, opt => opt.AddAsMultibox());
+            await ReplyAsync($"{GetAliasString(toMultibox)} successfully added as a multibox character");
+        }
+
 
 
         [Command("switch", RunMode = RunMode.Async)]

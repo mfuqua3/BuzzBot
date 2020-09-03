@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Services;
 using BuzzBot.Discord.Utility;
+using BuzzBot.Models;
 using BuzzBotData.Data;
 using Discord;
 using Microsoft.EntityFrameworkCore;
@@ -120,26 +121,35 @@ namespace BuzzBot.Epgp
             await messageChannel.SendMessageAsync("", false, BuildRaidSummary());
         }
 
+
         private Embed AwardEp(int value, string memo, List<RaidParticipant> participants)
         {
             using var scope = _serviceScopeFactory.CreateScope();
             var epgp = scope.ServiceProvider.GetRequiredService<IEpgpService>();
-            var aliasService = scope.ServiceProvider.GetRequiredService<IAliasService>();
-            var aliases = participants.Select(p => aliasService.GetAlias(p.Alias)).ToList();
-            foreach (var alias in aliases)
+            foreach (var participant in participants)
             {
-                epgp.Ep(alias, value, memo, TransactionType.EpAutomated);
+                if (participant.Aliases.Count == 1)
+                {
+                    epgp.Ep(participant.Aliases[0].Name, value, memo, TransactionType.EpAutomated);
+                    continue;
+                }
+
+                foreach (var alias in participant.Aliases)
+                {
+                    var ep = alias.IsPrimary ? value : (int)Math.Floor((double)value / 2); //Award full value if primary, otherwise add half (for multiboxers)
+                    epgp.Ep(alias.Name, ep, memo, TransactionType.EpAutomated);
+                }
             }
             var embedBuilder = new EmbedBuilder();
             embedBuilder.WithTitle($"EP award of {value} - {memo}")
                 .WithTimestamp(GetTimestamp());
-            var count = participants.Count;
+            var count = participants.SelectMany(p=>p.Aliases).Count();
             const int numberOfColumns = 3;
             var columnMax = (int)Math.Ceiling((double)count / numberOfColumns);
-            var remaining = participants;
+            var remaining = participants.SelectMany(p=>p.Aliases).ToList();
             for (int i = 0; i < numberOfColumns; i++)
             {
-                RaidParticipant[] forColumn;
+                EpgpAliasViewModel[] forColumn;
                 var columnSb = new StringBuilder();
                 if (!remaining.Any())
                 {
@@ -159,7 +169,7 @@ namespace BuzzBot.Epgp
 
                 foreach (var participant in forColumn)
                 {
-                    var participantString = participant.IsPrimaryAlias ? $"<@{participant.Id}>" : participant.Alias;
+                    var participantString = participant.IsPrimary ? $"<@{participant.UserId}>" : participant.Name;
                     columnSb.AppendLine($"{participantString}");
                 }
 
@@ -174,7 +184,6 @@ namespace BuzzBot.Epgp
         {
             using var scope = _serviceScopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<BuzzBotDbContext>();
-            var aliasService = scope.ServiceProvider.GetRequiredService<IAliasService>();
             var raid = db.Raids
                 .Include(r => r.Loot).ThenInclude(ri => ri.Item)
                 .Include(r => r.Loot).ThenInclude(ri => ri.Transaction)
@@ -191,7 +200,7 @@ namespace BuzzBot.Epgp
             var lootRecipients = raid.Loot.GroupBy(l => l.AwardedAliasId);
             foreach (var recipient in lootRecipients)
             {
-                var alias = aliasService.GetAlias(recipient.Key);
+                var alias = db.Aliases.Find(recipient.Key);
                 var itemSb = new StringBuilder();
                 foreach (var raidItem in recipient)
                 {

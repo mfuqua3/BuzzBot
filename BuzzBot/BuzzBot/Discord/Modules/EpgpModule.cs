@@ -82,6 +82,20 @@ namespace BuzzBot.Discord.Modules
             _mapper = mapper;
         }
 
+        [Command("forcecorrect")]
+        [Summary("Corrects the user record to the sum of their transaction history")]
+        [RequiresBotAdmin]
+        public async Task ForceCorrect(IGuildUser user)
+        {
+            var aliases = _aliasService.GetActiveAliases(user.Id).ToList();
+            foreach (var alias in aliases)
+            {
+                _auditService.ForceCorrect(alias.Id);
+            }
+
+            await ReplyAsync("Done.");
+
+        }
         
 
         [Command("reconcile")]
@@ -89,10 +103,15 @@ namespace BuzzBot.Discord.Modules
         [Summary("Reconciles the users printed EP and GP values against their transaction history.")]
         public async Task ReconcileAccount(IGuildUser user)
         {
-            var alias = _aliasService.GetActiveAlias(user.Id);
+            var aliases = _aliasService.GetActiveAliases(user.Id).ToList();
             try
             {
-                _auditService.ValidateTransactionHistory(alias.Id);
+                foreach (var epgpAlias in aliases)
+                {
+                    await ReplyAsync($"Reconciling alias identity: {epgpAlias.Name}");
+                    _auditService.ValidateTransactionHistory(epgpAlias.Id);
+                    await ReplyAsync($"Alias reconciliation complete.");
+                }
                 await ReplyAsync("User's account reconciled successfully. No discrepancies detected.");
             }
             catch (System.ComponentModel.DataAnnotations.ValidationException ex)
@@ -116,10 +135,11 @@ namespace BuzzBot.Discord.Modules
                 await ReplyAsync("No active raid could be found.");
                 return;
             }
-            var item = await _itemService.TryGetItem(itemQueryString, Context, user.Id);
+            var activeAliases = _aliasService.GetActiveAliases(user.Id).ToList();
+            var activeAlias = await QueryTargetAlias(activeAliases);
+            var item = await _itemService.TryGetItem(itemQueryString, Context, activeAlias);
             if (item == null) return;
             var gp = _epgpCalculator.ConvertGpFromGold(raid.NexusCrystalValue) * 2;
-            var activeAlias = _aliasService.GetActiveAlias(user.Id);
             _epgpService.Gp(activeAlias, item, $"[Roll] {item.Name}", gp);
             var embed = CreateItemEmbed(item, gp);
             var userString = activeAlias.IsPrimary ? $"<@{user.Id}>" : _emoteService.GetAliasString(activeAlias, Context.Guild.Id);
@@ -151,9 +171,11 @@ namespace BuzzBot.Discord.Modules
             var isOffhand = queryString.EndsWith(" -oh");
             if (isOffhand)
                 queryString = queryString.Substring(0, queryString.Length - 4);
-            var item = await _itemService.TryGetItem(queryString, Context, user.Id);
+            var aliases = _aliasService.GetActiveAliases(user.Id);
+            var alias = await QueryTargetAlias(aliases.ToList());
+            var item = await _itemService.TryGetItem(queryString, Context, alias);
             if (item == null) return;
-            await GiveItemGearPoints(user, item, isOffhand);
+            await GiveItemGearPoints(alias, item, isOffhand);
         }
 
         [Command("cost", RunMode = RunMode.Async)]
@@ -182,14 +204,13 @@ namespace BuzzBot.Discord.Modules
             return embed.Build();
         }
 
-        private async Task GiveItemGearPoints(IGuildUser user, Item item, bool isOffhand)
+        private async Task GiveItemGearPoints(EpgpAlias alias, Item item, bool isOffhand)
         {
-            var activeAlias = _aliasService.GetActiveAlias(user.Id);
-            var gp = _epgpCalculator.CalculateItem(item, activeAlias.Class == Class.Hunter, isOffhand);
+            var gp = _epgpCalculator.CalculateItem(item, alias.Class == Class.Hunter, isOffhand);
             var embed = CreateItemEmbed(item, gp);
-            var userString = activeAlias.IsPrimary ? $"<@{user.Id}>" : _emoteService.GetAliasString(activeAlias, Context.Guild.Id);
+            var userString = alias.IsPrimary ? $"<@{alias.UserId}>" : _emoteService.GetAliasString(alias, Context.Guild.Id);
             await ReplyAsync($"Assigning to {userString}", false, embed);
-            _epgpService.Gp(activeAlias, item, $"[Claim] {item.Name}");
+            _epgpService.Gp(alias, item, $"[Claim] {item.Name}");
         }
 
         [Command("correct")]
@@ -319,8 +340,8 @@ namespace BuzzBot.Discord.Modules
         [Command("pr")]
         public async Task PrintPriority(params IGuildUser[] users)
         {
-            var prunedUsers = users.Select(usr => usr.GetAliasName()).Distinct();
-            await PrintPriority(prunedUsers.ToArray());
+            var userNames = users.SelectMany(usr => _aliasService.GetActiveAliases(usr.Id)).Select(a => a.Name).ToArray();
+            await PrintPriority(userNames);
         }
         [Command("ep")]
         [Summary("Grants EP to the user")]
@@ -334,13 +355,14 @@ namespace BuzzBot.Discord.Modules
             await dmChannel.SendMessageAsync($"{value} EP successfully granted to {alias}");
         }
 
-        [Command("ep")]
+        [Command("ep", RunMode = RunMode.Async)]
         [Summary("Grants EP to the user")]
         [Remarks("ep Azar 10")]
         [RequiresBotAdmin]
         public async Task AssignEffortPoints(IGuildUser user, int value)
         {
-            var alias = _aliasService.GetActiveAlias(user.Id);
+            var aliases = _aliasService.GetActiveAliases(user.Id);
+            var alias = await QueryTargetAlias(aliases.ToList());
             _epgpService.Ep(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
             var dmChannel = await GetUserChannel();
             await dmChannel.SendMessageAsync($"{value} EP successfully granted to {_emoteService.GetAliasString(alias, Context.Guild.Id)}");
@@ -358,11 +380,12 @@ namespace BuzzBot.Discord.Modules
             await dmChannel.SendMessageAsync($"{value} GP successfully granted to {alias}");
         }
 
-        [Command("gp")]
+        [Command("gp", RunMode = RunMode.Async)]
         [RequiresBotAdmin]
         public async Task AssignGearPoints(IGuildUser user, int value)
         {
-            var alias = _aliasService.GetActiveAlias(user.Id);
+            var aliases = _aliasService.GetActiveAliases(user.Id);
+            var alias = await QueryTargetAlias(aliases.ToList());
             _epgpService.Gp(alias, value, $"Granted by {(Context.User as IGuildUser).GetAliasName()}");
             var dmChannel = await GetUserChannel();
             await dmChannel.SendMessageAsync($"{value} GP successfully granted to {_emoteService.GetAliasString(alias, Context.Guild.Id)}");
@@ -410,13 +433,14 @@ namespace BuzzBot.Discord.Modules
             await ReplyAsync("Configuration change accepted");
         }
 
-        [Command("loot")]
+        [Command("loot", RunMode = RunMode.Async)]
         [Alias("items")]
         [Summary("Prints the users entire awarded item history")]
         [Remarks("loot @Azar")]
         public async Task PrintLootHistory(IGuildUser user)
         {
-            var alias = _aliasService.GetActiveAlias(user.Id);
+            var aliases = _aliasService.GetActiveAliases(user.Id).ToList();
+            var alias = aliases.Count > 2 ? await QueryTargetAlias(aliases) : aliases.FirstOrDefault();
             var channel = await GetUserChannel();
             await _itemService.PrintLootHistory(channel, alias, _administrationService.IsUserAdmin(Context.User));
         }
@@ -429,6 +453,14 @@ namespace BuzzBot.Discord.Modules
             if (item == null) return;
             await _itemService.PrintItemHistory(await GetUserChannel(), item,
                 _administrationService.IsUserAdmin(Context.User));
+        }
+
+        private async Task<EpgpAlias> QueryTargetAlias(List<EpgpAlias> ambiguousAliases)
+        {
+            if (ambiguousAliases.Count < 2) return ambiguousAliases.FirstOrDefault();
+            var idx = await _queryService.SendOptionSelectQuery("Please select the intended target alias", ambiguousAliases,
+                alias => alias.Name, Context.Channel, CancellationToken.None);
+            return idx == -1 ? null : ambiguousAliases[idx];
         }
 
         [Command("undo")]

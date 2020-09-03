@@ -12,7 +12,7 @@ namespace BuzzBot.Epgp
 {
     public interface IItemResolver
     {
-        Task<Item> ResolveItem(Item toResolve, ICommandContext context, ulong targetUserId);
+        Task<Item> ResolveItem(Item toResolve, ICommandContext context, EpgpAlias targetAlias);
     }
 
     public class ItemResolver : IItemResolver
@@ -29,12 +29,12 @@ namespace BuzzBot.Epgp
             _aliasService = aliasService;
             _itemMappers = mapperResolver();
         }
-        public async Task<Item> ResolveItem(Item toResolve, ICommandContext context, ulong targetUserId)
+        public async Task<Item> ResolveItem(Item toResolve, ICommandContext context, EpgpAlias targetAlias)
         {
             foreach (var mapper in _itemMappers)
             {
                 if (!mapper.ContainsMap(toResolve)) continue;
-                var items = mapper.GetItems(toResolve, context, targetUserId).ToList();
+                var items = mapper.GetItems(toResolve, context, targetAlias).ToList();
                 if (items.Count <= 1)
                 {
                     if (!items.Any())
@@ -44,23 +44,22 @@ namespace BuzzBot.Epgp
                     }
                     return items.FirstOrDefault();
                 }
-                return await QueryItem(items, context, targetUserId);
+                return await QueryItem(items, context, targetAlias);
             }
 
             return toResolve;
         }
 
-        private async Task<Item> QueryItem(List<Item> candidateItems, ICommandContext context, ulong targetUserId)
+        private async Task<Item> QueryItem(List<Item> candidateItems, ICommandContext context, EpgpAlias targetAlias)
         {
             var index = await _queryService.SendOptionSelectQuery("Please select the item\n⚠️ - item has been claimed by this user previously\n", candidateItems,
-                item => GetQueryString(item, targetUserId), context.Channel, CancellationToken.None);
+                item => GetQueryString(item, targetAlias), context.Channel, CancellationToken.None);
             if (index == -1) return null;
             return candidateItems[index];
         }
 
-        private string GetQueryString(Item item, ulong userId)
+        private string GetQueryString(Item item, EpgpAlias alias)
         {
-            var alias = _aliasService.GetActiveAlias(userId);
             var receivedPreviously = alias.AwardedItems.Any(itm => itm.ItemId == item.Id);
             return $"{item.Name} {(receivedPreviously ? "⚠️" : string.Empty)}";
         }
@@ -152,10 +151,9 @@ namespace BuzzBot.Epgp
             return _mappedItemDictionary.ContainsKey(item.Id);
         }
 
-        public IEnumerable<Item> GetItems(Item item, ICommandContext commandContext, ulong targetUserId)
+        public IEnumerable<Item> GetItems(Item item, ICommandContext commandContext, EpgpAlias targetAlias)
         {
             var candidateItems = _mappedItemDictionary[item.Id];
-            var alias = _aliasService.GetActiveAlias(targetUserId);
             foreach (var candidateItem in candidateItems)
             {
                 if (!_classDictionary.ContainsKey(candidateItem))
@@ -164,7 +162,7 @@ namespace BuzzBot.Epgp
                     continue;
                 }
 
-                if (_classDictionary[candidateItem] != alias.Class) continue;
+                if (_classDictionary[candidateItem] != targetAlias.Class) continue;
                 yield return GetItem(candidateItem);
             }
 
@@ -181,7 +179,7 @@ namespace BuzzBot.Epgp
     public interface IItemMapper
     {
         bool ContainsMap(Item item);
-        IEnumerable<Item> GetItems(Item item, ICommandContext commandContext, ulong targetUserId);
+        IEnumerable<Item> GetItems(Item item, ICommandContext commandContext, EpgpAlias targetAlias);
     }
 
     public delegate IItemMapper[] ItemMapperResolver();
