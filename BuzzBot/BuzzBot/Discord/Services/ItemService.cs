@@ -18,21 +18,28 @@ namespace BuzzBot.Discord.Services
         private readonly BuzzBotDbContext _dbContext;
         private readonly IItemResolver _itemResolver;
         private readonly IPageService _pageService;
+        private readonly IAliasService _aliasService;
 
-        public ItemService(IQueryService queryService, BuzzBotDbContext dbContext, IItemResolver itemResolver, IPageService pageService)
+        public ItemService(IQueryService queryService, BuzzBotDbContext dbContext, IItemResolver itemResolver, IPageService pageService, IAliasService aliasService)
         {
             _queryService = queryService;
             _dbContext = dbContext;
             _itemResolver = itemResolver;
             _pageService = pageService;
+            _aliasService = aliasService;
         }
-        public async Task<Item> TryGetItem(string queryString, ICommandContext commandContext, ulong targetUserId)
+        public async Task<Item> TryGetItem(string queryString, ICommandContext commandContext,
+            EpgpAlias targetAlias = null)
         {
-            if (targetUserId == 0)
-                targetUserId = commandContext.User.Id;
+            if (targetAlias == null)
+            {
+                var userId = commandContext.User.Id;
+                var aliases = _aliasService.GetActiveAliases(userId);
+                targetAlias = aliases.FirstOrDefault();
+            }
             var item = await GetQueriedItem(queryString, commandContext);
             if (item == null) return null;
-            return await _itemResolver.ResolveItem(item, commandContext, targetUserId);
+            return await _itemResolver.ResolveItem(item, commandContext, targetAlias);
         }
 
         public async Task PrintLootHistory(IMessageChannel channel, EpgpAlias alias, bool asAdmin)

@@ -14,6 +14,7 @@ namespace BuzzBot.Discord.Services
     {
         Task Audit(string aliasId, IMessageChannel messageChannel, bool isAdmin = false);
         void ValidateTransactionHistory(Guid aliasId);
+        void ForceCorrect(Guid aliasId);
     }
 
     public class AuditService : IAuditService
@@ -96,20 +97,35 @@ namespace BuzzBot.Discord.Services
             await _pageService.SendPages(messageChannel, format);
         }
 
+        public void ForceCorrect(Guid aliasId)
+        {
+            var alias = _dbContext.Aliases.Include(a => a.Transactions).FirstOrDefault(a => a.Id == aliasId);
+            if (alias == null) return;
+            var (ep, gp) = GetEpGpFromTransactions(alias.Transactions);
+            alias.EffortPoints = ep;
+            alias.GearPoints = gp;
+            _dbContext.SaveChanges();
+        }
+
+        private (int, int) GetEpGpFromTransactions(ICollection<EpgpTransaction> transactions)
+        {
+            var gp = transactions
+                .Where(t => GetCurrency(t.TransactionType) == Currency.Gp)
+                .Sum(t => t.Value);
+            var ep = transactions
+                .Where(t => GetCurrency(t.TransactionType) == Currency.Ep)
+                .Sum(t => t.Value);
+            return (ep, gp);
+        }
+
         public void ValidateTransactionHistory(Guid aliasId)
         {
             var alias = _dbContext.Aliases.Include(a => a.Transactions).FirstOrDefault(a => a.Id == aliasId);
             if (alias == null) throw new InvalidOperationException("No alias could be found by that name.");
             var claimedGp = alias.GearPoints;
             var claimedEp = alias.EffortPoints;
-            var gpShouldBe = alias.Transactions
-                .Where(t => GetCurrency(t.TransactionType) == Currency.Gp)
-                .Sum(t => t.Value);
+            var (epShouldBe, gpShouldBe) = GetEpGpFromTransactions(alias.Transactions);
             var gpReconciles = claimedGp == gpShouldBe;
-            var epShouldBe =
-                alias.Transactions
-                    .Where(t => GetCurrency(t.TransactionType) == Currency.Ep)
-                    .Sum(t => t.Value);
             var epReconciles = epShouldBe == claimedEp;
             if (epReconciles && gpReconciles) return;
             throw new ValidationException("Reconciliation of transaction history returned discrepancies. \n" +
