@@ -33,6 +33,7 @@ namespace BuzzBot.Epgp
         public IEnumerable<EpgpAlias> GetActiveAliases(ulong userId)
         {
             var aliases = GetAliases(userId);
+            if (!aliases.Any()) return new EpgpAlias[] { };
             var activeAliases = aliases.Where(a => a.IsActive).ToArray();
             if (activeAliases.Any()) return activeAliases;
 
@@ -95,8 +96,7 @@ namespace BuzzBot.Epgp
         {
             return _dbContext.GuildUsers.Include(usr => usr.Aliases).ThenInclude(a => a.Transactions)
                 .Include(usr => usr.Aliases).ThenInclude(a => a.AwardedItems).FirstOrDefault(usr => usr.Id == userId)
-                ?.Aliases
-                .ToList();
+                ?.Aliases.ToList() ?? new List<EpgpAlias>();
         }
 
         public EpgpAlias GetAlias(string aliasName)
