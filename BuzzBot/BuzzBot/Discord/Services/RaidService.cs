@@ -84,10 +84,16 @@ namespace BuzzBot.Discord.Services
             var aliases = _aliasService.GetActiveAliases(reaction.UserId).ToList();
             if (!aliases.Any()) return;
             var aliasViewModels = _mapper.Map<List<EpgpAlias>, List<EpgpAliasViewModel>>(aliases);
+            var role = reaction.Emote.Name.ParseRoleFromEmote();
+            if (reaction.UserId == 144664922188414977 /*Okuru*/ &&
+                role != Role.Healer)
+            {
+                role = Role.Healer;
+            }
             var participant = new RaidParticipant(reaction.UserId)
             {
                 Aliases = aliasViewModels,
-                Role = reaction.Emote.Name.ParseRoleFromEmote()
+                Role = role
             };
             if (action == ReactionAction.Add)
             {
@@ -175,7 +181,7 @@ namespace BuzzBot.Discord.Services
         }
 
         public async Task KickUser(string alias, ulong raidId = 0)
-            => await KickUser(_dbContext.Aliases.FirstOrDefault(a=>a.Name==alias)?.UserId ?? 0, raidId);
+            => await KickUser(_dbContext.Aliases.FirstOrDefault(a => a.Name == alias)?.UserId ?? 0, raidId);
 
         public void Start(ulong raidId = 0)
         {
@@ -234,7 +240,7 @@ namespace BuzzBot.Discord.Services
             if (raidData.RaidObject.Participants.Values.All(p => p.Aliases.All(a => a.IsPrimary))) return;
             foreach (var participant in raidData.RaidObject.Participants.Values)
             {
-                if (participant.Aliases.All(a=>a.IsPrimary)) continue;
+                if (participant.Aliases.All(a => a.IsPrimary)) continue;
                 _aliasService.SetActiveAlias(participant.Id, _aliasService.GetPrimaryAlias(participant.Id).Name);
             }
 
@@ -279,7 +285,7 @@ namespace BuzzBot.Discord.Services
 
         private int GetParticipantCount(ICollection<RaidParticipant> participants, Role role)
         {
-            return participants.Where(p => p.Role == role).SelectMany(p=>p.Aliases).Count();
+            return participants.Where(p => p.Role == role).SelectMany(p => p.Aliases).Count();
         }
 
         private string BuildUserList(EpgpRaid raid, Role userRole, ulong guildId)
@@ -291,12 +297,12 @@ namespace BuzzBot.Discord.Services
             }
             var returnSb = new StringBuilder();
             foreach (var participant in participants.Where(p => p.Role == userRole))
-            foreach(var epgpAlias in participant.Aliases)
-            {
-                var fullyQualifiedEmoteName =
-                    _emoteService.GetFullyQualifiedName(guildId, epgpAlias.Class.GetEmoteName());
-                returnSb.AppendLine($"{fullyQualifiedEmoteName} {AliasString(epgpAlias)}");
-            }
+                foreach (var epgpAlias in participant.Aliases)
+                {
+                    var fullyQualifiedEmoteName =
+                        _emoteService.GetFullyQualifiedName(guildId, epgpAlias.Class.GetEmoteName());
+                    returnSb.AppendLine($"{fullyQualifiedEmoteName} {AliasString(epgpAlias)}");
+                }
 
             return returnSb.ToString();
         }
