@@ -444,7 +444,7 @@ namespace BuzzBot.Discord.Modules
             var channel = await GetUserChannel();
             await _itemService.PrintLootHistory(channel, alias, _administrationService.IsUserAdmin(Context.User));
         }
-        [Command("history")]
+        [Command("history", RunMode = RunMode.Async)]
         [Summary("Prints the an entire awarded item history")]
         [Remarks("loot Claw of Chromaggus")]
         public async Task PrintItemHistory([Remainder] string queryString)
