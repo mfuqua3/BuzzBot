@@ -115,7 +115,7 @@ namespace BuzzBot.Epgp
 
         public void DeleteTransaction(Guid transactionId)
         {
-            var transaction = _dbContext.EpgpTransactions.Include(t => t.Alias).ThenInclude(a=>a.AwardedItems).FirstOrDefault(t => t.Id == transactionId);
+            var transaction = _dbContext.EpgpTransactions.Include(t => t.Alias).ThenInclude(a => a.AwardedItems).FirstOrDefault(t => t.Id == transactionId);
             if (transaction == null) return;
             var raidItems = transaction.Alias.AwardedItems.Where(i => i.TransactionId == transactionId);
             switch (transaction.TransactionType)
@@ -153,10 +153,10 @@ namespace BuzzBot.Epgp
             switch (currencyType)
             {
                 case Currency.Ep:
-                    change = alias.EffortPoints + value < config.EpMinimum ? alias.EffortPoints - config.EpMinimum : value;
+                    change = alias.EffortPoints + value < config.EpMinimum ? config.EpMinimum - alias.EffortPoints : value;
                     break;
                 case Currency.Gp:
-                    change = alias.GearPoints + value < config.GpMinimum ? alias.GearPoints - config.GpMinimum : value;
+                    change = alias.GearPoints + value < config.GpMinimum ? config.GpMinimum - alias.GearPoints : value;
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
