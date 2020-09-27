@@ -22,7 +22,8 @@ namespace BuzzBot.Discord.Modules
                              "Available modules:\n" +
                              "!bank\n" +
                              "!raid\n" +
-                             "!epgp");
+                             "!epgp\n" +
+                             "!data");
         }
 
     }

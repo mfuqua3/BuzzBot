@@ -5,12 +5,14 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using AutoMapper;
 using BuzzBot.Discord.Extensions;
 using BuzzBot.Discord.Services;
 using BuzzBot.Discord.Utility;
 using BuzzBot.Models;
 using BuzzBotData.Data;
 using Discord;
+using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -94,7 +96,8 @@ namespace BuzzBot.Epgp
             }
 
             _raidData.Started = true;
-            var award = AwardEp(_raidData.RaidObject.StartBonus, "Raid Start Bonus", GetAllUsers(_raidData.RaidObject));
+            UpdateRaidParticipants(_raidData.RaidObject);
+            var award = AwardEp(_raidData.RaidObject.StartBonus, "Raid Start Bonus", GetAllUsers(_raidData.RaidObject), _raidData.RaidObject.RaidId);
             await _raidData.LeaderChannel.SendMessageAsync("", false, award);
             if (_raidData.LeaderChannel != messageChannel)
             {
@@ -107,7 +110,8 @@ namespace BuzzBot.Epgp
                 {
                     await Task.Delay(_raidData.RaidObject.TimeBonusDuration, _cts.Token);
                     if (_raidData == null) return;
-                    award = AwardEp(_raidData.RaidObject.TimeBonus, "Raid Time Bonus", GetAllUsers(_raidData.RaidObject));
+                    UpdateRaidParticipants(_raidData.RaidObject);
+                    award = AwardEp(_raidData.RaidObject.TimeBonus, "Raid Time Bonus", GetAllUsers(_raidData.RaidObject), _raidData.RaidObject.RaidId);
                     await _raidData.LeaderChannel.SendMessageAsync("", false, award);
                 }
                 catch (TaskCanceledException)
@@ -116,16 +120,36 @@ namespace BuzzBot.Epgp
                 }
             }
             if (_raidData == null) return;
-            award = AwardEp(_raidData.RaidObject.EndBonus, "Raid End Bonus", GetAllUsers(_raidData.RaidObject));
+            UpdateRaidParticipants(_raidData.RaidObject);
+            award = AwardEp(_raidData.RaidObject.EndBonus, "Raid End Bonus", GetEndBonusAliases(_raidData.RaidObject), _raidData.RaidObject.RaidId);
             await _raidData.LeaderChannel.SendMessageAsync("", false, award);
             await messageChannel.SendMessageAsync("", false, BuildRaidSummary());
         }
 
+        private void UpdateRaidParticipants(EpgpRaid raidData)
+        {
 
-        private Embed AwardEp(int value, string memo, List<RaidParticipant> participants)
+            using var scope = _serviceScopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<BuzzBotDbContext>();
+            var raid = db.Raids.Include(r => r.Participants).FirstOrDefault(r => r.Id == raidData.RaidId);
+            if (raid == null) return;
+            var raidParticipants = raidData.Participants.Values;
+            foreach (var participant in raidParticipants)
+                foreach (var participantAlias in participant.Aliases)
+                {
+                    if (raid.Participants.Any(rp => rp.AliasId == participantAlias.Id)) continue;
+                    raid.Participants.Add(new RaidAlias() { RaidId = raid.Id, AliasId = participantAlias.Id });
+                }
+
+            db.SaveChanges();
+        }
+
+        private Embed AwardEp(int value, string memo, List<RaidParticipant> participants, Guid raidId)
         {
             using var scope = _serviceScopeFactory.CreateScope();
             var epgp = scope.ServiceProvider.GetRequiredService<IEpgpService>();
+            var db = scope.ServiceProvider.GetRequiredService<BuzzBotDbContext>();
+
             foreach (var participant in participants)
             {
                 if (participant.Aliases.Count == 1)
@@ -143,10 +167,10 @@ namespace BuzzBot.Epgp
             var embedBuilder = new EmbedBuilder();
             embedBuilder.WithTitle($"EP award of {value} - {memo}")
                 .WithTimestamp(GetTimestamp());
-            var count = participants.SelectMany(p=>p.Aliases).Count();
+            var count = participants.SelectMany(p => p.Aliases).Count();
             const int numberOfColumns = 3;
             var columnMax = (int)Math.Ceiling((double)count / numberOfColumns);
-            var remaining = participants.SelectMany(p=>p.Aliases).ToList();
+            var remaining = participants.SelectMany(p => p.Aliases).ToList();
             for (int i = 0; i < numberOfColumns; i++)
             {
                 EpgpAliasViewModel[] forColumn;
@@ -224,6 +248,44 @@ namespace BuzzBot.Epgp
         private DateTime GetTimestamp()
         {
             return DateTime.Now;
+        }
+
+        private List<RaidParticipant> GetEndBonusAliases(EpgpRaid raidData)
+        {
+            var returnList = new List<EpgpAlias>();
+            using var scope = _serviceScopeFactory.CreateScope();
+            var mapper = scope.ServiceProvider.GetRequiredService<IMapper>();
+            var db = scope.ServiceProvider.GetRequiredService<BuzzBotDbContext>();
+            var raid = db.Raids.Include(r => r.Participants).ThenInclude(a => a.Alias).FirstOrDefault(r => r.Id == raidData.RaidId);
+            if (raid == null) throw new InvalidOperationException("Unable to locate the raid with the provided ID");
+            var userGroups = raid.Participants.GroupBy(rp => rp.Alias.UserId);
+            foreach (var userGroup in userGroups)
+            {
+                if (userGroup.Count() == 1 && userGroup.First().Alias.IsPrimary)
+                {
+                    returnList.Add(userGroup.First().Alias);
+                    continue;
+                }
+
+                if (userGroup.All(rp => rp.Alias.IsActive))
+                {
+                    returnList.AddRange(userGroup.Select(rp => rp.Alias));
+                    continue;
+                }
+
+                var bonusAlias = userGroup.FirstOrDefault(rp => rp.Alias.IsPrimary) ??
+                                 userGroup.FirstOrDefault(rp => rp.Alias.IsActive);
+                if (bonusAlias == null) continue;
+                returnList.Add(bonusAlias.Alias);
+            }
+
+            return returnList.GroupBy(a => a.UserId)
+                .Select(grp =>
+                    new RaidParticipant(grp.First().UserId)
+                    {
+                        Aliases = mapper.Map<IEnumerable<EpgpAlias>, List<EpgpAliasViewModel>>(grp)
+                    })
+                .ToList();
         }
 
         private List<RaidParticipant> GetAllUsers(EpgpRaid raid)
