@@ -12,14 +12,16 @@ namespace BuzzBot.Epgp
     {
         private readonly IEpgpConfigurationService _epgpConfigurationService;
         private readonly IConfiguration _configuration;
+        private readonly IEpgpTransactionFactory _epgpTransactionFactory;
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private DateTime _lastDecayDateTime;
 
 
-        public DecayProcessor(IEpgpConfigurationService epgpConfigurationService, IConfiguration configuration)
+        public DecayProcessor(IEpgpConfigurationService epgpConfigurationService, IConfiguration configuration, IEpgpTransactionFactory epgpTransactionFactory)
         {
             _epgpConfigurationService = epgpConfigurationService;
             _configuration = configuration;
+            _epgpTransactionFactory = epgpTransactionFactory;
         }
 
         public void Initialize()
@@ -60,42 +62,15 @@ namespace BuzzBot.Epgp
                 var epDecay = -(int)Math.Round(alias.EffortPoints * asPercent, MidpointRounding.AwayFromZero);
                 var gpDecay = -(int)Math.Round(alias.GearPoints * asPercent, MidpointRounding.AwayFromZero);
                 var epTransaction =
-                    GetTransaction(alias, epDecay, $"{decayPercent}% Decay", TransactionType.EpDecay);
+                    _epgpTransactionFactory.GetTransaction(alias, epDecay, $"{decayPercent}% Decay", TransactionType.EpDecay);
                 var gpTransaction =
-                    GetTransaction(alias, gpDecay, $"{decayPercent}% Decay", TransactionType.GpDecay);
+                    _epgpTransactionFactory.GetTransaction(alias, gpDecay, $"{decayPercent}% Decay", TransactionType.GpDecay);
                 PostTransaction(alias, epTransaction, dbContext);
                 PostTransaction(alias, gpTransaction, dbContext);
             }
         }
 
-        private EpgpTransaction GetTransaction(EpgpAlias alias, int value, string memo, TransactionType transactionType)
-        {
-
-            var config = _epgpConfigurationService.GetConfiguration();
-            var currencyType = transactionType.GetAttributeOfType<CurrencyAttribute>().Currency;
-            int change;
-            switch (currencyType)
-            {
-                case Currency.Ep:
-                    change = alias.EffortPoints + value < config.EpMinimum ? alias.EffortPoints - config.EpMinimum : value;
-                    break;
-                case Currency.Gp:
-                    change = alias.GearPoints + value < config.GpMinimum ? alias.GearPoints - config.GpMinimum : value;
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-
-            return new EpgpTransaction
-            {
-                Id = Guid.NewGuid(),
-                AliasId = alias.Id,
-                Memo = memo,
-                TransactionDateTime = DateTime.UtcNow,
-                TransactionType = transactionType,
-                Value = change
-            };
-        }
+        
         private void PostTransaction(EpgpAlias alias, EpgpTransaction transaction, BuzzBotDbContext dbContext)
         {
             dbContext.EpgpTransactions.Add(transaction);

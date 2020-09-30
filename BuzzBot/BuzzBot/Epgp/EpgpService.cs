@@ -18,6 +18,7 @@ namespace BuzzBot.Epgp
         private readonly IAliasEventAlerter _aliasEventAlerter;
         private readonly IAliasService _aliasService;
         private readonly BuzzBotDbContext _dbContext;
+        private IEpgpTransactionFactory _epgpTransactionFactory;
         public const string EpFlag = "-ep";
         public const string GpFlag = "-gp";
 
@@ -26,7 +27,8 @@ namespace BuzzBot.Epgp
             IRaidRepository raidRepository,
             IAliasEventAlerter aliasEventAlerter,
             IAliasService aliasService,
-            BuzzBotDbContext dbContext)
+            BuzzBotDbContext dbContext, 
+            IEpgpTransactionFactory epgpTransactionFactory)
         {
             _configurationService = configurationService;
             _epgpCalculator = epgpCalculator;
@@ -34,6 +36,7 @@ namespace BuzzBot.Epgp
             _aliasEventAlerter = aliasEventAlerter;
             _aliasService = aliasService;
             _dbContext = dbContext;
+            _epgpTransactionFactory = epgpTransactionFactory;
             aliasEventAlerter.AliasAdded += AliasAdded;
         }
 
@@ -53,7 +56,7 @@ namespace BuzzBot.Epgp
 
         public void Ep(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.EpManual)
         {
-            var transaction = GetTransaction(alias, value, memo, type);
+            var transaction = _epgpTransactionFactory.GetTransaction(alias, value, memo, type);
             PostTransaction(alias, transaction);
         }
 
@@ -81,7 +84,7 @@ namespace BuzzBot.Epgp
 
         public void Gp(EpgpAlias alias, int value, string memo, TransactionType type = TransactionType.GpManual)
         {
-            var transaction = GetTransaction(alias, value, memo, type);
+            var transaction = _epgpTransactionFactory.GetTransaction(alias, value, memo, type);
             PostTransaction(alias, transaction);
         }
 
@@ -96,7 +99,7 @@ namespace BuzzBot.Epgp
                 return;
             }
 
-            var transaction = GetTransaction(alias, (int)Math.Round(gpValue, MidpointRounding.AwayFromZero), memo, TransactionType.GpFromGear);
+            var transaction = _epgpTransactionFactory.GetTransaction(alias, (int)Math.Round(gpValue, MidpointRounding.AwayFromZero), memo, TransactionType.GpFromGear);
             _dbContext.EpgpTransactions.Add(transaction);
             alias.Transactions.Add(transaction);
             alias.GearPoints += transaction.Value;
@@ -144,34 +147,7 @@ namespace BuzzBot.Epgp
             _dbContext.SaveChanges();
         }
 
-        private EpgpTransaction GetTransaction(EpgpAlias alias, int value, string memo, TransactionType transactionType)
-        {
-
-            var config = _configurationService.GetConfiguration();
-            var currencyType = transactionType.GetAttributeOfType<CurrencyAttribute>().Currency;
-            int change;
-            switch (currencyType)
-            {
-                case Currency.Ep:
-                    change = alias.EffortPoints + value < config.EpMinimum ? config.EpMinimum - alias.EffortPoints : value;
-                    break;
-                case Currency.Gp:
-                    change = alias.GearPoints + value < config.GpMinimum ? config.GpMinimum - alias.GearPoints : value;
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-
-            return new EpgpTransaction
-            {
-                Id = Guid.NewGuid(),
-                AliasId = alias.Id,
-                Memo = memo,
-                TransactionDateTime = DateTime.UtcNow,
-                TransactionType = transactionType,
-                Value = change
-            };
-        }
+        
 
         public bool Set([NotNull] string aliasName, int ep, int gp, string memo = "Manual Value Correction")
         {
