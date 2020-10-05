@@ -26,6 +26,7 @@ namespace BuzzBot.Epgp
         private RaidData _raidData;
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private bool _restart;
+        private int _epAwarded = 0;
 
         public EpgpRaidMonitor(IEmoteService emoteService, RaidData raidData, IServiceScopeFactory serviceScopeFactory)
         {
@@ -146,6 +147,7 @@ namespace BuzzBot.Epgp
 
         private Embed AwardEp(int value, string memo, List<RaidParticipant> participants, Guid raidId)
         {
+            _epAwarded += value;
             using var scope = _serviceScopeFactory.CreateScope();
             var epgp = scope.ServiceProvider.GetRequiredService<IEpgpService>();
             var db = scope.ServiceProvider.GetRequiredService<BuzzBotDbContext>();
@@ -217,8 +219,8 @@ namespace BuzzBot.Epgp
             startTime = DateTime.SpecifyKind(startTime, DateTimeKind.Utc);
             var embedBuilder = new EmbedBuilder()
                 .WithTitle("Raid Summary")
-                .AddField("🌅 Start Time", startTime.ToEasternTime(), true)
-                .AddField("🌙 End Time", DateTime.UtcNow.ToEasternTime(), true)
+                .AddField("⏲️ Total Raid Time", $"{(DateTime.UtcNow - startTime).TotalMinutes:F0} min", true)
+                .AddField("📒 EP Bonus Total", _epAwarded, true)
                 .AddField("💰 Loot distributed", raid.Loot.Count, true);
 
             var lootRecipients = raid.Loot.GroupBy(l => l.AwardedAliasId);
