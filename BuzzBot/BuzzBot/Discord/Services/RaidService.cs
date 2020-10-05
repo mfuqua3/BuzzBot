@@ -85,11 +85,6 @@ namespace BuzzBot.Discord.Services
             if (!aliases.Any()) return;
             var aliasViewModels = _mapper.Map<List<EpgpAlias>, List<EpgpAliasViewModel>>(aliases);
             var role = reaction.Emote.Name.ParseRoleFromEmote();
-            if (reaction.UserId == 144664922188414977 /*Okuru*/ &&
-                role != Role.Healer)
-            {
-                role = Role.Healer;
-            }
             var participant = new RaidParticipant(reaction.UserId)
             {
                 Aliases = aliasViewModels,

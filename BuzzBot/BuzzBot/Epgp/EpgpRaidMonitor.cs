@@ -263,18 +263,21 @@ namespace BuzzBot.Epgp
             var userGroups = raid.Participants.GroupBy(rp => rp.Alias.UserId);
             foreach (var userGroup in userGroups)
             {
+                //If no user in this grouping was in the end of the raid, move on
+                if (!raidData.Participants.ContainsKey(userGroup.Key)) continue;
+                //If a user was only playing one character, and their primary participated in this raid, award EP to their primary
                 if (userGroup.Count() == 1 && userGroup.First().Alias.IsPrimary)
                 {
                     returnList.Add(userGroup.First().Alias);
                     continue;
                 }
-
+                //Otherwise add it to their active
                 if (userGroup.All(rp => rp.Alias.IsActive))
                 {
                     returnList.AddRange(userGroup.Select(rp => rp.Alias));
                     continue;
                 }
-
+                //If a user was multiboxing, add to their multibox characters as normal.
                 var bonusAlias = userGroup.FirstOrDefault(rp => rp.Alias.IsPrimary) ??
                                  userGroup.FirstOrDefault(rp => rp.Alias.IsActive);
                 if (bonusAlias == null) continue;

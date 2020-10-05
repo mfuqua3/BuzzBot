@@ -19,7 +19,7 @@ namespace BuzzBot.Epgp.Extensions
                 .AddSingleton<DecayProcessor>()
                 .AddSingleton<IAliasEventAlerter, AliasEventAlerter>()
                 .AddScoped<IUserService, UserService>()
-                .AddScoped<IEpgpTransactionFactory, EpgpTransactionFactory>()
+                .AddTransient<IEpgpTransactionFactory, EpgpTransactionFactory>()
                 .AddSingleton<IRaidRepository, RaidRepository>();
 
             services.AddTransient<AhnQirajTempleItemMapper>();
