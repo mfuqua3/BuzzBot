@@ -1,4 +1,5 @@
 ﻿using System;
+using BuzzBotData.Data;
 
 namespace BuzzBot.Epgp
 {
@@ -22,6 +23,17 @@ namespace BuzzBot.Epgp
         public string PR { get; set; }
     }
 
+    public class TransactionCsvRecord
+    {
+
+        public Guid Id { get; set; }
+        public DateTime TransactionDateTime { get; set; }
+        public ulong DiscordUserId { get; set; }
+        public string CharacterName { get; set; }
+        public TransactionType TransactionType { get; set; }
+        public int Value { get; set; }
+        public string Memo { get; set; }
+    }
     public class LootCsvRecord
     {
         public string TransactionId { get; set; }
