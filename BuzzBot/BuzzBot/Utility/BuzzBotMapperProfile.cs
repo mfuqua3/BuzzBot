@@ -26,6 +26,15 @@ namespace BuzzBot.Utility
                 .ForMember(csv => csv.RaidEventId, opt => opt.MapFrom(ri => ri.RaidId.ToString("N")))
                 .ForAllOtherMembers(opt=>opt.Ignore());
 
+            CreateMap<EpgpTransaction, TransactionCsvRecord>()
+                .ForMember(csv => csv.Id, opt => opt.MapFrom(t => t.Id))
+                .ForMember(csv => csv.TransactionDateTime, opt => opt.MapFrom(t => t.TransactionDateTime))
+                .ForMember(csv => csv.DiscordUserId, opt => opt.MapFrom(t => t.Alias.UserId))
+                .ForMember(csv => csv.CharacterName, opt => opt.MapFrom(t => t.Alias.Name))
+                .ForMember(csv => csv.TransactionType, opt => opt.MapFrom(t => t.TransactionType))
+                .ForMember(csv => csv.Value, opt => opt.MapFrom(t => t.Value))
+                .ForMember(csv => csv.Memo, opt => opt.MapFrom(t => t.Memo));
+
             CreateMap<EpgpAlias, EpgpAliasViewModel>()
                 .ReverseMap();
         }
