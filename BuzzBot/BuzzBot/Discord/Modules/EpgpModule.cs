@@ -283,6 +283,26 @@ namespace BuzzBot.Discord.Modules
             await channel.SendFileAsync(new MemoryStream(data), "epgp.csv");
         }
 
+        [Command("transactioncsv")]
+        [Summary("DMs the calling user a csv file with all of the transactions in the bots database")]
+        public async Task PrintTransactionCsv()
+        {
+            var transactions = await _dbContext.EpgpTransactions
+                .Include(t => t.Alias)
+                .OrderByDescending(t => t.TransactionDateTime)
+                .ToListAsync();
+            var csvRecords = _mapper.Map<List<EpgpTransaction>, List<TransactionCsvRecord>>(transactions);
+            var channel = await GetUserChannel();
+            await using var stream = new MemoryStream() { Capacity = 1024000 };
+            await using var textWriter = new StreamWriter(stream) { AutoFlush = true };
+            await using var writer = new CsvWriter(textWriter, CultureInfo.CurrentCulture);
+            {
+                await writer.WriteRecordsAsync(csvRecords);
+            }
+            var data = stream.ToArray();
+            await channel.SendFileAsync(new MemoryStream(data), "transactions.csv");
+        }
+
         [Command("lootcsv")]
         [Summary("DMs the calling user a csv file with all of the loot in the bots database")]
         public async Task PrintLootCsv()
