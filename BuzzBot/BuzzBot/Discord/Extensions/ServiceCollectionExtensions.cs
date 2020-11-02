@@ -1,6 +1,7 @@
 ﻿using BuzzBot.Discord.Modules;
 using BuzzBot.Discord.Services;
 using BuzzBot.Discord.Utility;
+using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,7 +12,20 @@ namespace BuzzBot.Discord.Extensions
     {
         public static IServiceCollection AddDiscordComponents(this IServiceCollection services)
         {
-            var client = new DiscordSocketClient();
+            var intents =
+                    GatewayIntents.GuildMembers |
+                    GatewayIntents.DirectMessages |
+                    GatewayIntents.GuildMessageReactions |
+                    GatewayIntents.DirectMessageReactions |
+                    GatewayIntents.GuildMessages |
+                    GatewayIntents.GuildMessageReactions |
+                    GatewayIntents.Guilds |
+                    GatewayIntents.GuildPresences;
+            var config = new DiscordSocketConfig()
+            {
+                GatewayIntents = intents
+            };
+            var client = new DiscordSocketClient(config);
             services.AddSingleton(client)
                 .AddScoped<ScopedCommandContext>()
                 .AddSingleton<IAdministrationService, AdministrationService>()

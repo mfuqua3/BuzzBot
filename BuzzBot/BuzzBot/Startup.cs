@@ -83,7 +83,6 @@ namespace BuzzBot
 
             await client.LoginAsync(TokenType.Bot, Configuration["token"]);
             await client.StartAsync();
-
             await Task.Delay(-1);
 
         }
