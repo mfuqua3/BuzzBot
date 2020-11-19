@@ -146,23 +146,6 @@ namespace BuzzBot.Discord.Modules
             await ReplyAsync($"Assigning to {userString}", false, embed);
         }
 
-        [Command("decay")]
-        [RequiresBotAdmin]
-        public Task Decay(int percentage, string epgpFlag = null)
-        {
-            Task.Run(async () => await _queryService.SendQuery($"Decay all user EP/GP values by {percentage}%?", Context.Channel,
-                async () =>
-                {
-                    _epgpService.Decay(percentage, epgpFlag);
-                    await ReplyAsync("Decay executed successfully.");
-                },
-                async () =>
-                {
-                    await ReplyAsync("Decay operation cancelled.");
-                }));
-            return Task.CompletedTask;
-        }
-
 
         [Command("gp", RunMode = RunMode.Async)]
         [RequiresBotAdmin]

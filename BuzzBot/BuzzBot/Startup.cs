@@ -35,6 +35,7 @@ namespace BuzzBot
             var mapperCfg = new MapperConfiguration(cfg => cfg.AddProfile<BuzzBotMapperProfile>());
             services
                 .AddSingleton(mapperCfg.CreateMapper())
+                .AddSingleton<IBuzzBotDbContextFactory, BuzzBotDbContextFactory>()
                 .AddData()
                 .AddClassicGuildBankComponents()
                 .AddEpgpComponents()
@@ -79,7 +80,7 @@ namespace BuzzBot
             services.GetRequiredService<LogService>();
             await services.GetRequiredService<CommandHandlingService>().InitializeAsync(services);
             services.GetRequiredService<NexusHubItemPoller>().Initialize();
-            services.GetRequiredService<DecayProcessor>().Initialize();
+            services.GetRequiredService<IDecayProcessor>().Initialize();
 
             await client.LoginAsync(TokenType.Bot, Configuration["token"]);
             await client.StartAsync();

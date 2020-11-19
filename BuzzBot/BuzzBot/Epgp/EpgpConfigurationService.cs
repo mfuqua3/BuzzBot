@@ -25,10 +25,13 @@ namespace BuzzBot.Epgp
             {
                 _configuration = new EpgpConfiguration
                 {
-                    DecayPercentage = 5,
+                    EpDecayPercentage = 5,
+                    GpDecayPercentage = 5,
                     DecayDayOfWeek = DayOfWeek.Monday,
                     EpMinimum = 1,
                     GpMinimum = 1,
+                    UseEarnedGpDecay = 0,
+                    EarnedGpDecayValue = 0,
                     Templates = new List<EpgpRaidTemplate>()
                 };
                 Save();

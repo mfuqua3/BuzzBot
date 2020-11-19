@@ -16,7 +16,7 @@ namespace BuzzBot.Epgp.Extensions
                 .AddScoped<IAliasService, AliasService>()
                 .AddSingleton<NexusHubClient>()
                 .AddTransient<NexusHubItemPoller>()
-                .AddSingleton<DecayProcessor>()
+                .AddSingleton<IDecayProcessor, DecayProcessor>()
                 .AddSingleton<IAliasEventAlerter, AliasEventAlerter>()
                 .AddScoped<IUserService, UserService>()
                 .AddTransient<IEpgpTransactionFactory, EpgpTransactionFactory>()

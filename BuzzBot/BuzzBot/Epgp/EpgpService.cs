@@ -168,24 +168,6 @@ namespace BuzzBot.Epgp
 
         }
 
-        public void Decay(int decayPercent)
-            => Decay(decayPercent, null);
-
-        public void Decay(int decayPercent, string epgpFlag)
-        {
-            var asPercent = (double)decayPercent / 100;
-            var aliases = _dbContext.Aliases.ToList();
-            foreach (var alias in aliases)
-            {
-                var epDecay = -(int)Math.Round(alias.EffortPoints * asPercent, MidpointRounding.AwayFromZero);
-                var gpDecay = -(int)Math.Round(alias.GearPoints * asPercent, MidpointRounding.AwayFromZero);
-                if (string.IsNullOrWhiteSpace(epgpFlag) || epgpFlag.Equals(EpFlag))
-                    Ep(alias, epDecay, $"{decayPercent}% Decay", TransactionType.EpDecay);
-                if (string.IsNullOrWhiteSpace(epgpFlag) || epgpFlag.Equals(GpFlag))
-                    Gp(alias, gpDecay, $"{decayPercent}% Decay", TransactionType.GpDecay);
-            }
-        }
-
         public void Dispose()
         {
             _aliasEventAlerter.AliasAdded -= AliasAdded;
