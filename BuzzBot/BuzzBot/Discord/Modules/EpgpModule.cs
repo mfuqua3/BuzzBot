@@ -46,6 +46,7 @@ namespace BuzzBot.Discord.Modules
         private readonly BuzzBotDbContext _dbContext;
         private IUserService _userService;
         private IMapper _mapper;
+        private IDecayProcessor _decayProcessor;
         public const string GroupName = "epgp";
 
         public EpgpModule(
@@ -62,7 +63,7 @@ namespace BuzzBot.Discord.Modules
             IItemService itemService,
             IRaidService raidService,
             IAdministrationService administrationService,
-            BuzzBotDbContext dbContext, IUserService userService, IMapper mapper)
+            BuzzBotDbContext dbContext, IUserService userService, IMapper mapper, IDecayProcessor decayProcessor)
         {
             _priorityReportingService = priorityReportingService;
             _queryService = queryService;
@@ -80,7 +81,28 @@ namespace BuzzBot.Discord.Modules
             _dbContext = dbContext;
             _userService = userService;
             _mapper = mapper;
+            _decayProcessor = decayProcessor;
         }
+
+        [Command("decay", RunMode = RunMode.Async)]
+        [Summary("Manually decays all users in the database by the specified amount")]
+        [RequiresBotAdmin]
+        public async Task Decay(int epDecay, int gpDecay)
+        {
+            await _queryService.SendQuery(
+                $"Are you sure you'd like to manually decay all aliases by {epDecay}% EP and {gpDecay}% GP?",
+                Context.Channel,
+                async () =>
+                {
+                    _decayProcessor.Decay(epDecay, gpDecay);
+                    await ReplyAsync("Decay applied successfully.");
+                },
+                async () => { await ReplyAsync("Operation cancelled."); });
+        }
+        [Command("decay", RunMode = RunMode.Async)]
+        [Summary("Manually decays all users in the database by the specified amount")]
+        [RequiresBotAdmin]
+        public async Task Decay(int amount) => await Decay(amount, amount);
 
         [Command("forcecorrect")]
         [Summary("Corrects the user record to the sum of their transaction history")]
@@ -96,7 +118,7 @@ namespace BuzzBot.Discord.Modules
             await ReplyAsync("Done.");
 
         }
-        
+
 
         [Command("reconcile")]
         [Alias("validate")]
