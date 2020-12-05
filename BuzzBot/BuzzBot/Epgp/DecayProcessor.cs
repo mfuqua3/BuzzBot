@@ -77,6 +77,28 @@ namespace BuzzBot.Epgp
             dbContext.SaveChanges();
         }
 
+        public void Decay(int epDecayPercent, int gpDecayPercent)
+        {
+            var epDecayPct = AsPercentage(epDecayPercent);
+            var gpDecayPct = AsPercentage(gpDecayPercent);
+            using var dbContext = _buzzBotDbContextFactory.GetNew();
+            var aliases = dbContext.Aliases.ToList();
+            foreach (var alias in aliases)
+            {
+                var epDecay = -(int)Math.Round(alias.EffortPoints * epDecayPct, MidpointRounding.AwayFromZero);
+                var gpDecay = -(int)Math.Round(alias.GearPoints * gpDecayPct, MidpointRounding.AwayFromZero); 
+                var epTransaction =
+                    _epgpTransactionFactory.GetTransaction(alias, epDecay, $"{epDecayPercent}% EP Decay", TransactionType.EpDecay);
+                var gpTransaction =
+                    _epgpTransactionFactory.GetTransaction(alias, gpDecay, $"{gpDecayPercent}% GP Decay", TransactionType.GpDecay);
+                PostTransaction(alias, epTransaction, dbContext);
+                PostTransaction(alias, gpTransaction, dbContext);
+
+            }
+
+            dbContext.SaveChanges();
+        }
+
         private List<AliasDecayData> GetAliasData(BuzzBotDbContext dbContext, EpgpConfiguration config)
         {
             //Get all EPGP characters in system
